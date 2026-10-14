@@ -1,5 +1,6 @@
 package com.janreins.piso
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -146,6 +147,31 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        // Observe the request used by ActivityResultRegistry without changing picker callbacks.
+        appViewModel.pickerLockExemption.onRequestLaunched(requestCode)
+        super.startActivityForResult(intent, requestCode, options)
+    }
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        appViewModel.pickerLockExemption.onResultReturned(requestCode)
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onStart() {
+        // A pending picker return gets until onResume to deliver its matching result.
+        appViewModel.onAppStarted()
+        super.onStart()
+    }
+
+    override fun onResume() {
+        // Resolve the exemption before super can notify resume callbacks/lifecycle observers.
+        appViewModel.onAppResumed()
+        super.onResume()
     }
 
     override fun onStop() {

@@ -538,10 +538,9 @@ fun SettingsScreen(
                     ) {
                         Button(
                             onClick = {
-                                viewModel.setSkipLockOnce(true)
                                 val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                                 val filename = "Piso_Backup_$dateStr.json"
-                                createDocLauncher.launch(filename)
+                                viewModel.launchPicker { createDocLauncher.launch(filename) }
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -560,8 +559,9 @@ fun SettingsScreen(
 
                         OutlinedButton(
                             onClick = {
-                                viewModel.setSkipLockOnce(true)
-                                openDocLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                                viewModel.launchPicker {
+                                    openDocLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                                }
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -580,9 +580,8 @@ fun SettingsScreen(
                     // Spreadsheet export (read-only; not a backup)
                     OutlinedButton(
                         onClick = {
-                            viewModel.setSkipLockOnce(true)
                             val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                            createCsvLauncher.launch("Piso_Transactions_$dateStr.csv")
+                            viewModel.launchPicker { createCsvLauncher.launch("Piso_Transactions_$dateStr.csv") }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1292,7 +1291,6 @@ fun SettingsScreen(
                             putExtra(Intent.EXTRA_SUBJECT, "Piso Backup")
                             putExtra(Intent.EXTRA_TEXT, jsonString)
                         }
-                        viewModel.setSkipLockOnce(true)
                         context.startActivity(Intent.createChooser(shareIntent, "Share Backup"))
                         showExportTextDialog = null
                     }

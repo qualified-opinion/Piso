@@ -2,6 +2,8 @@ package com.janreins.piso.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.SystemClock
+import android.provider.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +26,13 @@ fun isWeakPin(pin: String): Boolean {
     return pin in listOf("000000", "111111", "123456", "121212", "654321")
 }
 
-class UserProfileManager(context: Context) {
+class UserProfileManager(
+    context: Context,
+    private val elapsedRealtime: () -> Long = { SystemClock.elapsedRealtime() },
+    private val bootCount: () -> Int = {
+        Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, 0)
+    }
+) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("piso_user_profile", Context.MODE_PRIVATE)
@@ -35,21 +43,7 @@ class UserProfileManager(context: Context) {
     private val _isLocked = MutableStateFlow(hasPin())
     val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
 
-    private var _skipLockOnce = false
-    val skipLockOnce: Boolean
-        get() = _skipLockOnce
-
-    fun setSkipLockOnce(value: Boolean = true) {
-        _skipLockOnce = value
-    }
-
-    fun consumeSkipLockOnce(): Boolean {
-        if (_skipLockOnce) {
-            _skipLockOnce = false
-            return true
-        }
-        return false
-    }
+    val pickerLockExemption = PickerLockExemption(elapsedRealtime)
 
     private fun loadProfile(): UserProfile {
         val name = prefs.getString(KEY_DISPLAY_NAME, "") ?: ""
@@ -102,6 +96,8 @@ class UserProfileManager(context: Context) {
         }
         editor.remove(KEY_FAILED_ATTEMPTS)
         editor.remove(KEY_LOCKOUT_UNTIL)
+        editor.remove(KEY_LOCKOUT_UNTIL_ELAPSED)
+        editor.remove(KEY_LOCKOUT_BOOT_COUNT)
         editor.apply()
         _userProfile.value = loadProfile()
         _isLocked.value = false
@@ -113,62 +109,70 @@ class UserProfileManager(context: Context) {
     }
 
     fun getLockoutRemainingSeconds(): Int {
-        val lockoutUntil = prefs.getLong(KEY_LOCKOUT_UNTIL, 0L)
-        val now = System.currentTimeMillis()
-        return if (lockoutUntil > now) {
-            ((lockoutUntil - now + 999) / 1000).toInt()
-        } else {
-            0
+        val now = elapsedRealtime()
+        val currentBoot = bootCount()
+        var lockoutUntil = prefs.getLong(KEY_LOCKOUT_UNTIL_ELAPSED, 0L)
+        if (prefs.contains(KEY_LOCKOUT_UNTIL) ||
+            (prefs.contains(KEY_LOCKOUT_UNTIL_ELAPSED) &&
+                prefs.getInt(KEY_LOCKOUT_BOOT_COUNT, -1) != currentBoot)
+        ) {
+            // Restart a cooldown after reboot, or when upgrading a wall-clock deadline.
+            lockoutUntil = now + lockoutSeconds(prefs.getInt(KEY_FAILED_ATTEMPTS, 0)) * 1000L
+            prefs.edit()
+                .remove(KEY_LOCKOUT_UNTIL)
+                .putLong(KEY_LOCKOUT_UNTIL_ELAPSED, lockoutUntil)
+                .putInt(KEY_LOCKOUT_BOOT_COUNT, currentBoot)
+                .apply()
         }
+        return ((lockoutUntil - now).coerceAtLeast(0L) + 999L).div(1000L).toInt()
     }
 
-    fun recordFailedAttempt(): Int {
+    private fun lockoutSeconds(attempts: Int): Int = when {
+        attempts >= 10 -> 300 // 5 minutes
+        attempts >= 5 -> 30
+        else -> 0
+    }
+
+    private fun recordFailedAttempt() {
         val currentAttempts = prefs.getInt(KEY_FAILED_ATTEMPTS, 0) + 1
         val editor = prefs.edit()
         editor.putInt(KEY_FAILED_ATTEMPTS, currentAttempts)
-        val lockoutSeconds = when {
-            currentAttempts >= 10 -> 300 // 5 minutes
-            currentAttempts >= 5 -> 30   // 30 seconds
-            else -> 0
-        }
+        val lockoutSeconds = lockoutSeconds(currentAttempts)
         if (lockoutSeconds > 0) {
-            val lockoutUntil = System.currentTimeMillis() + lockoutSeconds * 1000L
-            editor.putLong(KEY_LOCKOUT_UNTIL, lockoutUntil)
+            editor.putLong(KEY_LOCKOUT_UNTIL_ELAPSED, elapsedRealtime() + lockoutSeconds * 1000L)
+            editor.putInt(KEY_LOCKOUT_BOOT_COUNT, bootCount())
         }
         editor.apply()
-        return lockoutSeconds
     }
 
-    fun resetFailedAttempts() {
+    private fun resetFailedAttempts() {
         prefs.edit()
             .remove(KEY_FAILED_ATTEMPTS)
             .remove(KEY_LOCKOUT_UNTIL)
+            .remove(KEY_LOCKOUT_UNTIL_ELAPSED)
+            .remove(KEY_LOCKOUT_BOOT_COUNT)
             .apply()
     }
 
     fun verifyPin(pin: String): Boolean {
+        if (getLockoutRemainingSeconds() > 0) return false
         val storedHash = prefs.getString(KEY_PIN_HASH, "") ?: ""
-        if (storedHash.isBlank()) return true
-        val inputHash = hashPin(pin)
-        return storedHash == inputHash
+        val valid = storedHash.isBlank() || storedHash == hashPin(pin)
+        if (valid) resetFailedAttempts() else recordFailedAttempt()
+        return valid
     }
 
     fun unlock(pin: String): Boolean {
-        if (getLockoutRemainingSeconds() > 0) {
-            return false
-        }
         if (verifyPin(pin)) {
-            resetFailedAttempts()
             _isLocked.value = false
             return true
         } else {
-            recordFailedAttempt()
             return false
         }
     }
 
     fun lock() {
-        _skipLockOnce = false
+        pickerLockExemption.clear()
         if (hasPin()) {
             _isLocked.value = true
         }
@@ -215,6 +219,8 @@ class UserProfileManager(context: Context) {
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_FAILED_ATTEMPTS = "failed_attempts"
         private const val KEY_LOCKOUT_UNTIL = "lockout_until"
+        private const val KEY_LOCKOUT_UNTIL_ELAPSED = "lockout_until_elapsed"
+        private const val KEY_LOCKOUT_BOOT_COUNT = "lockout_boot_count"
 
         @Volatile
         private var INSTANCE: UserProfileManager? = null
