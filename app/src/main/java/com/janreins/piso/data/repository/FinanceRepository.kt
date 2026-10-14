@@ -13,6 +13,9 @@ import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.util.CurrencyUtil.roundCents
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlin.math.max
@@ -20,7 +23,10 @@ import kotlin.math.max
 /**
  * Single source of truth repository managing all financial operations and live account balances.
  */
-class FinanceRepository(private val database: AppDatabase) {
+class FinanceRepository(
+    private val database: AppDatabase,
+    private val backupSafety: BackupSafety? = null
+) {
 
     private val accountDao = database.accountDao()
     private val transactionDao = database.transactionDao()
@@ -391,55 +397,78 @@ class FinanceRepository(private val database: AppDatabase) {
     suspend fun deleteInvestment(investment: Investment) = investmentDao.deleteInvestment(investment)
 
     // --- Backup & Restore & Clear ---
-    suspend fun exportBackupJson(): String {
-        val accounts = accountDao.getAllAccounts().first()
-        val transactions = transactionDao.getAllTransactions().first()
-        val budgets = budgetDao.getAllBudgets().first()
-        val goals = goalDao.getAllGoals().first()
-        val debts = debtDao.getAllDebts().first()
-        val investments = investmentDao.getAllInvestments().first()
-        val categories = categoryDao.getAllCategories().first()
-        val subcategories = categoryDao.getAllSubcategories().first()
-
-        val data = BackupData(
-            accounts = accounts,
-            transactions = transactions,
-            budgets = budgets,
-            goals = goals,
-            debts = debts,
-            investments = investments,
-            categories = categories,
-            subcategories = subcategories
-        )
-        return data.toJsonString()
+    suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
+        database.withTransaction { readBackupData().toJsonString() }
     }
+
+    private suspend fun readBackupData() = BackupData(
+        accounts = accountDao.getAllAccounts().first(),
+        transactions = transactionDao.getAllTransactions().first(),
+        budgets = budgetDao.getAllBudgets().first(),
+        goals = goalDao.getAllGoals().first(),
+        debts = debtDao.getAllDebts().first(),
+        investments = investmentDao.getAllInvestments().first(),
+        categories = categoryDao.getAllCategories().first(),
+        subcategories = categoryDao.getAllSubcategories().first()
+    )
 
     suspend fun importBackupJson(jsonString: String): Boolean {
         val data = BackupData.fromJsonString(jsonString) ?: return false
-        return database.withTransaction {
-            accountDao.clearAccounts()
-            transactionDao.clearTransactions()
-            budgetDao.clearBudgets()
-            goalDao.clearGoals()
-            debtDao.clearDebts()
-            investmentDao.clearInvestments()
+        return restoreBackup { data }
+    }
 
-            accountDao.insertAccounts(data.accounts)
-            transactionDao.insertTransactions(data.transactions)
-            budgetDao.insertBudgets(data.budgets)
-            goalDao.insertGoals(data.goals)
-            debtDao.insertDebts(data.debts)
-            investmentDao.insertInvestments(data.investments)
+    suspend fun hasUndoRestore(): Boolean = withContext(Dispatchers.IO) {
+        backupSafety?.latestBackup() != null
+    }
 
-            if (data.categories.isNotEmpty()) {
-                categoryDao.clearCategories()
-                categoryDao.clearSubcategories()
-                categoryDao.insertCategories(data.categories)
-                categoryDao.insertSubcategories(data.subcategories)
-            } else {
-                seedDefaultCategoriesIfEmpty()
+    suspend fun undoRestore(): Boolean = restoreBackup {
+        backupSafety?.latestBackup()?.readText(Charsets.UTF_8)?.let(BackupData::fromJsonString)
+    }
+
+    private suspend fun restoreBackup(load: () -> BackupData?): Boolean = withContext(Dispatchers.IO) {
+        // Fail closed if this repository has not been configured with app-private storage.
+        val safety = checkNotNull(backupSafety) { "Safety backup storage is required for restore" }
+        var saved: File? = null
+        val success = try {
+            database.withTransaction {
+                val data = load() ?: return@withTransaction false
+                // Keep the snapshot and replacement in the same transaction so writes cannot
+                // intervene. A filesystem failure happens before any DELETE or INSERT.
+                saved = safety.save(readBackupData().toJsonString())
+                replaceBackupData(data)
+                true
             }
-            true
+        } catch (failure: Throwable) {
+            // The DB rolled back; do not make a failed attempt the latest undo target.
+            saved?.delete()
+            throw failure
+        }
+        if (success) safety.prune()
+        success
+    }
+
+    private suspend fun replaceBackupData(data: BackupData) {
+        accountDao.clearAccounts()
+        transactionDao.clearTransactions()
+        budgetDao.clearBudgets()
+        goalDao.clearGoals()
+        debtDao.clearDebts()
+        investmentDao.clearInvestments()
+
+        accountDao.insertAccounts(data.accounts)
+        transactionDao.insertTransactions(data.transactions)
+        budgetDao.insertBudgets(data.budgets)
+        goalDao.insertGoals(data.goals)
+        debtDao.insertDebts(data.debts)
+        investmentDao.insertInvestments(data.investments)
+
+        if (data.hasCategoryData) {
+            categoryDao.clearCategories()
+            categoryDao.clearSubcategories()
+            categoryDao.insertCategories(data.categories)
+            categoryDao.insertSubcategories(data.subcategories)
+        } else {
+            seedDefaultCategoriesIfEmpty()
         }
     }
 
