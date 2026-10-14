@@ -18,7 +18,7 @@ object CsvExporter {
         val accountNames = accounts.associate { it.id to it.name }
         val sb = StringBuilder()
         // UTF-8 BOM so Excel opens accented names and notes correctly
-        sb.append('﻿')
+        sb.append('\uFEFF')
         sb.append(HEADER.joinToString(",") { escape(it) }).append("\r\n")
 
         transactions
