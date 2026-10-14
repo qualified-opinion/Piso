@@ -8,6 +8,7 @@ import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Goal
+import com.janreins.piso.data.models.Investment
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
@@ -206,16 +207,84 @@ class FinanceRepositoryTest {
     }
 
     @Test
-    fun testDeletingOverpaymentRestoresOnlyOriginalAmount() = runBlocking {
+    fun testOverpaymentIsCappedAndDeletingRestoresExactlyWhatWasOwed() = runBlocking {
         val debtId = repository.insertDebt(
             Debt(name = "IOU", kind = "Family", originalAmount = 800.0, remainingAmount = 800.0)
         )
         repository.recordDebtPayment(debtId, 1000.0, null)
         assertEquals(0.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+        assertEquals(800.0, repository.allTransactions.first().single().amount, 0.001)
 
         repository.deleteTransaction(repository.allTransactions.first().single())
 
         assertEquals(800.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+    }
+
+    @Test
+    fun deletingDebtPaymentRestoresBalancesAndNetWorth() = runBlocking {
+        assertDebtPaymentRoundTrip(original = 100.0, remaining = 100.0, payment = 60.0)
+    }
+
+    @Test
+    fun deletingDebtPaymentRestoresRemainingAboveOriginalAndNetWorth() = runBlocking {
+        assertDebtPaymentRoundTrip(original = 100.0, remaining = 150.0, payment = 60.0)
+    }
+
+    private suspend fun assertDebtPaymentRoundTrip(original: Double, remaining: Double, payment: Double) {
+        val accountId = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 500.0))
+        repository.insertInvestment(Investment(name = "Fund", kind = "Mutual Funds", currentValue = 200.0))
+        val debtId = repository.insertDebt(
+            Debt(name = "Loan", kind = "Personal", originalAmount = original, remainingAmount = remaining)
+        )
+        val beforeNetWorth = netWorth()
+        assertEquals(500.0 + 200.0 - remaining, beforeNetWorth, 0.001)
+
+        repository.recordDebtPayment(debtId, payment, accountId)
+
+        assertEquals(remaining - payment, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+        assertEquals(500.0 - payment, balanceOf(accountId), 0.001)
+        assertEquals(beforeNetWorth, netWorth(), 0.001)
+
+        repository.deleteTransaction(repository.allTransactions.first().single())
+
+        assertEquals(remaining, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+        assertEquals(500.0, balanceOf(accountId), 0.001)
+        assertEquals(beforeNetWorth, netWorth(), 0.001)
+        assertTrue(repository.allTransactions.first().isEmpty())
+    }
+
+    private suspend fun netWorth(): Double =
+        repository.allAccounts.first().sumOf { it.balance } +
+            repository.allInvestments.first().sumOf { it.currentValue } -
+            repository.allDebts.first().sumOf { it.remainingAmount }
+
+    @Test
+    fun completingGoalFromStaleCardPreservesContribution() = runBlocking {
+        assertGoalCompletionPreservesContribution(initiallyCompleted = false)
+    }
+
+    @Test
+    fun reopeningGoalFromStaleCardPreservesContribution() = runBlocking {
+        assertGoalCompletionPreservesContribution(initiallyCompleted = true)
+    }
+
+    private suspend fun assertGoalCompletionPreservesContribution(initiallyCompleted: Boolean) {
+        val accountId = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 500.0))
+        val goalId = repository.insertGoal(
+            Goal(name = "Trip", targetAmount = if (initiallyCompleted) 300.0 else 1000.0, currentAmount = 100.0,
+                isCompleted = initiallyCompleted, accountId = accountId)
+        )
+        val staleCard = database.goalDao().getGoalById(goalId)!!
+        repository.addMoneyToGoal(goalId, 200.0, accountId)
+        val afterContribution = database.goalDao().getGoalById(goalId)!!
+        assertEquals(300.0, afterContribution.currentAmount, 0.001)
+
+        repository.setGoalCompleted(staleCard.id, !staleCard.isCompleted)
+
+        val saved = database.goalDao().getGoalById(goalId)!!
+        assertEquals(afterContribution.copy(isCompleted = !staleCard.isCompleted), saved)
+        assertEquals(300.0, saved.currentAmount, 0.001)
+        assertEquals(500.0, balanceOf(accountId), 0.001)
     }
 
     @Test

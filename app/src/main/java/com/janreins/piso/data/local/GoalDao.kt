@@ -33,6 +33,9 @@ interface GoalDao {
     @Update
     suspend fun updateGoal(goal: Goal)
 
+    @Query("UPDATE goals SET isCompleted = :done WHERE id = :id")
+    suspend fun setGoalCompleted(id: Long, done: Boolean)
+
     @Delete
     suspend fun deleteGoal(goal: Goal)
 

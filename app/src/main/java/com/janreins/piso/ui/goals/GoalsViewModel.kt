@@ -71,6 +71,12 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setGoalCompleted(goalId: Long, done: Boolean) {
+        viewModelScope.launch {
+            repository.setGoalCompleted(goalId, done)
+        }
+    }
+
     fun deleteGoal(goal: Goal) {
         viewModelScope.launch {
             repository.deleteGoal(goal)

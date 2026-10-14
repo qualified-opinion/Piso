@@ -298,7 +298,7 @@ fun GoalsScreen(
 
                                 OutlinedButton(
                                     onClick = {
-                                        viewModel.updateGoal(goal.copy(isCompleted = !goal.isCompleted))
+                                        viewModel.setGoalCompleted(goal.id, !goal.isCompleted)
                                     },
                                     modifier = Modifier
                                         .weight(1f)
