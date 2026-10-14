@@ -200,8 +200,11 @@ class FinanceRepository(private val database: AppDatabase) {
             // Revert what is actually stored, not the caller's copy, which may be stale.
             // If the row is gone (already deleted) there is nothing to update.
             val stored = transactionDao.getTransactionById(oldTx.id) ?: return@withTransaction
-            val normalized = newTx.copy(id = stored.id, amount = roundCents(newTx.amount))
             revertTransactionBalance(stored)
+            // Cap against the restored debt balance so the saved payment can be fully reverted.
+            val debt = newTx.debtId?.let { debtDao.getDebtById(it) }
+            val amount = debt?.let { minOf(newTx.amount, it.remainingAmount) } ?: newTx.amount
+            val normalized = newTx.copy(id = stored.id, amount = roundCents(amount))
             applyTransactionBalance(normalized)
             transactionDao.updateTransaction(normalized)
         }

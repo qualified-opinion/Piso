@@ -192,6 +192,45 @@ class FinanceRepositoryTest {
     }
 
     @Test
+    fun testEditingDebtPaymentCapsAmountAndDeletingRestoresBalances() = runBlocking {
+        val accountId = repository.insertAccount(Account(name = "Checking", kind = "Bank", balance = 5000.0))
+        val debtId = repository.insertDebt(
+            Debt(name = "Loan", kind = "Personal", originalAmount = 1000.0, remainingAmount = 1000.0)
+        )
+        repository.recordDebtPayment(debtId, 500.0, accountId)
+        val paymentTx = repository.allTransactions.first().single()
+
+        repository.updateTransaction(paymentTx, paymentTx.copy(amount = 2000.0))
+
+        val saved = repository.allTransactions.first().single()
+        assertEquals(1000.0, saved.amount, 0.001)
+        assertEquals(0.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+        assertEquals(4000.0, balanceOf(accountId), 0.001)
+
+        repository.deleteTransaction(saved)
+
+        assertEquals(1000.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+        assertEquals(5000.0, balanceOf(accountId), 0.001)
+        assertTrue(repository.allTransactions.first().isEmpty())
+    }
+
+    @Test
+    fun testEditingDebtPaymentDownRestoresUnpaidAmount() = runBlocking {
+        val accountId = repository.insertAccount(Account(name = "Checking", kind = "Bank", balance = 5000.0))
+        val debtId = repository.insertDebt(
+            Debt(name = "Loan", kind = "Personal", originalAmount = 1000.0, remainingAmount = 1000.0)
+        )
+        repository.recordDebtPayment(debtId, 500.0, accountId)
+        val paymentTx = repository.allTransactions.first().single()
+
+        repository.updateTransaction(paymentTx, paymentTx.copy(amount = 200.0))
+
+        assertEquals(200.0, repository.allTransactions.first().single().amount, 0.001)
+        assertEquals(800.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
+        assertEquals(4800.0, balanceOf(accountId), 0.001)
+    }
+
+    @Test
     fun testEditingGoalContributionKeepsGoalBalance() = runBlocking {
         val accountId = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 5000.0))
         val goalId = repository.insertGoal(Goal(name = "Laptop", targetAmount = 1000.0))
