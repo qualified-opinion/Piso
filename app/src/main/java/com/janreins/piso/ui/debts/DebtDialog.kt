@@ -41,11 +41,14 @@ fun DebtDialog(
 ) {
     var name by remember { mutableStateOf(initialDebt?.name ?: "") }
     var kind by remember { mutableStateOf(initialDebt?.kind ?: Categories.DEBT_KINDS.first()) }
-    var originalText by remember {
-        mutableStateOf(if (initialDebt != null) CurrencyUtil.formatInputAmount(initialDebt.originalAmount) else "")
-    }
-    var remainingText by remember {
-        mutableStateOf(if (initialDebt != null) CurrencyUtil.formatInputAmount(initialDebt.remainingAmount) else "")
+    var amounts by remember {
+        mutableStateOf(
+            DebtAmountInputState(
+                originalText = initialDebt?.let { CurrencyUtil.formatInputAmount(it.originalAmount) } ?: "",
+                remainingText = initialDebt?.let { CurrencyUtil.formatInputAmount(it.remainingAmount) } ?: "",
+                remainingEdited = initialDebt != null
+            )
+        )
     }
     var notes by remember { mutableStateOf(initialDebt?.notes ?: "") }
 
@@ -119,12 +122,9 @@ fun DebtDialog(
 
                 // Original Amount
                 OutlinedTextField(
-                    value = originalText,
+                    value = amounts.originalText,
                     onValueChange = {
-                        originalText = it
-                        if (remainingText.isBlank()) {
-                            remainingText = it
-                        }
+                        amounts = amounts.editOriginal(it)
                         errorMessage = null
                     },
                     label = { Text("Original Amount (₱)") },
@@ -139,9 +139,9 @@ fun DebtDialog(
 
                 // Remaining Amount
                 OutlinedTextField(
-                    value = remainingText,
+                    value = amounts.remainingText,
                     onValueChange = {
-                        remainingText = it
+                        amounts = amounts.editRemaining(it)
                         errorMessage = null
                     },
                     label = { Text("Remaining Amount (₱)") },
@@ -183,16 +183,12 @@ fun DebtDialog(
                         errorMessage = "Debt name cannot be blank."
                         return@Button
                     }
-                    val parsedOriginal = CurrencyUtil.parsePositiveAmount(originalText)
+                    val parsedOriginal = CurrencyUtil.parsePositiveAmount(amounts.originalText)
                     if (parsedOriginal == null || parsedOriginal <= 0) {
                         errorMessage = "Please enter a valid original amount greater than 0."
                         return@Button
                     }
-                    val parsedRemaining = if (remainingText.isBlank()) {
-                        parsedOriginal
-                    } else {
-                        CurrencyUtil.parseAmount(remainingText)
-                    }
+                    val parsedRemaining = amounts.remainingForSave(parsedOriginal)
                     if (parsedRemaining == null || parsedRemaining < 0) {
                         errorMessage = "Please enter a valid remaining amount (0 or more)."
                         return@Button

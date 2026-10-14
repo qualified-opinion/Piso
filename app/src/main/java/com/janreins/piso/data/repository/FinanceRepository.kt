@@ -200,8 +200,11 @@ class FinanceRepository(private val database: AppDatabase) {
             // Revert what is actually stored, not the caller's copy, which may be stale.
             // If the row is gone (already deleted) there is nothing to update.
             val stored = transactionDao.getTransactionById(oldTx.id) ?: return@withTransaction
-            val normalized = newTx.copy(id = stored.id, amount = roundCents(newTx.amount))
             revertTransactionBalance(stored)
+            // Cap against the restored debt balance so the saved payment can be fully reverted.
+            val debt = newTx.debtId?.let { debtDao.getDebtById(it) }
+            val amount = debt?.let { minOf(newTx.amount, it.remainingAmount) } ?: newTx.amount
+            val normalized = newTx.copy(id = stored.id, amount = roundCents(amount))
             applyTransactionBalance(normalized)
             transactionDao.updateTransaction(normalized)
         }
@@ -241,14 +244,14 @@ class FinanceRepository(private val database: AppDatabase) {
             }
         }
 
-        // Debt payment: reduces what's owed, never below zero. A payment can only have reduced
-        // the debt by what was owed, so reverting never restores more than the original amount.
+        // Debt payment: reduces what's owed, never below zero. Reverting adds the payment back
+        // without capping at the original principal (the balance may include interest or fees).
         tx.debtId?.let { debtId ->
             val debt = debtDao.getDebtById(debtId) ?: return@let
             val remaining = if (sign > 0) {
                 max(0.0, debt.remainingAmount - amount)
             } else {
-                minOf(debt.remainingAmount + amount, max(debt.originalAmount, debt.remainingAmount))
+                debt.remainingAmount + amount
             }
             debtDao.updateDebt(debt.copy(remainingAmount = roundCents(remaining)))
         }
@@ -267,6 +270,7 @@ class FinanceRepository(private val database: AppDatabase) {
     // --- Goals ---
     suspend fun insertGoal(goal: Goal): Long = goalDao.insertGoal(normalizeGoal(goal))
     suspend fun updateGoal(goal: Goal) = goalDao.updateGoal(normalizeGoal(goal))
+    suspend fun setGoalCompleted(goalId: Long, done: Boolean) = goalDao.setGoalCompleted(goalId, done)
 
     suspend fun deleteGoal(goal: Goal) {
         database.withTransaction {
@@ -338,12 +342,16 @@ class FinanceRepository(private val database: AppDatabase) {
     suspend fun recordDebtPayment(debtId: Long, amount: Double, fromAccountId: Long?) {
         database.withTransaction {
             val debt = debtDao.getDebtById(debtId) ?: return@withTransaction
+            // Never record more than is owed, so the transaction amount is exactly what the
+            // payment took off the debt and deleting it adds back exactly that.
+            val applied = roundCents(minOf(amount, debt.remainingAmount))
+            if (applied <= 0.0) return@withTransaction
             val tx = Transaction(
                 dateMillis = System.currentTimeMillis(),
                 type = "EXPENSE",
                 category = "Debt",
                 subcategory = "",
-                amount = roundCents(amount),
+                amount = applied,
                 note = "Payment for ${debt.name}",
                 accountId = fromAccountId,
                 debtId = debtId
