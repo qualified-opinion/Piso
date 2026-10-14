@@ -9,16 +9,23 @@ import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
+import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.util.CsvExporter
+import com.janreins.piso.util.ExportWriter
+import java.io.File
+import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -36,9 +43,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _messageEvent = MutableSharedFlow<String>()
     val messageEvent: SharedFlow<String> = _messageEvent.asSharedFlow()
 
+    private var restoreInProgress = false
+
+    private val _canUndoRestore = MutableStateFlow(false)
+    val canUndoRestore: StateFlow<Boolean> = _canUndoRestore.asStateFlow()
+
     init {
         val db = AppDatabase.getDatabase(application)
-        repository = FinanceRepository(db)
+        repository = FinanceRepository(db, BackupSafety(File(application.filesDir, "backups")))
+        viewModelScope.launch { _canUndoRestore.value = repository.hasUndoRestore() }
     }
 
     val userProfile: StateFlow<UserProfile> = profileManager.userProfile
@@ -140,19 +153,61 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun importBackup(jsonString: String, onResult: (Boolean) -> Unit) {
+        if (restoreInProgress) return
+        restoreInProgress = true
         viewModelScope.launch {
-            // The restore runs in a single DB transaction, so a failure leaves existing data untouched.
-            val success = try {
-                repository.importBackupJson(jsonString)
+            try {
+                // The restore runs in a single DB transaction, so a failure leaves existing data untouched.
+                val success = try {
+                    repository.importBackupJson(jsonString)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    false
+                }
+                if (success) {
+                    _canUndoRestore.value = true
+                    showMessage("Data restored successfully. Undo restore is available.")
+                } else {
+                    showMessage("Restore failed. Your current data was kept. Check the backup and available storage.")
+                }
+                onResult(success)
+            } finally {
+                restoreInProgress = false
+            }
+        }
+    }
+
+    fun undoRestore() {
+        if (restoreInProgress) return
+        restoreInProgress = true
+        viewModelScope.launch {
+            try {
+                val success = try {
+                    repository.undoRestore()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    false
+                }
+                showMessage(if (success) "Previous data restored" else "Couldn't undo restore. Your current data was kept.")
+                _canUndoRestore.value = repository.hasUndoRestore()
+            } finally {
+                restoreInProgress = false
+            }
+        }
+    }
+
+    fun writeExport(text: String, isCsv: Boolean = false, openStream: () -> OutputStream?) {
+        viewModelScope.launch {
+            try {
+                ExportWriter.write(text, openStream)
+                showMessage(if (isCsv) "Transactions exported to CSV" else "Backup file saved successfully")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                false
+                showMessage(if (isCsv) "Failed to write CSV file" else "Failed to write backup file")
             }
-            if (success) {
-                showMessage("Data restored successfully")
-            } else {
-                showMessage("This is not a valid Piso backup.")
-            }
-            onResult(success)
         }
     }
 

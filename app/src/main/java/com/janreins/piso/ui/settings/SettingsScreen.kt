@@ -98,6 +98,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val userProfile = uiState.userProfile
+    val canUndoRestore by viewModel.canUndoRestore.collectAsStateWithLifecycle()
 
     // Dialog States
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -117,14 +118,7 @@ fun SettingsScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.exportBackup { jsonString ->
-                try {
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(jsonString.toByteArray(Charsets.UTF_8))
-                    }
-                    viewModel.showMessage("Backup file saved successfully")
-                } catch (e: Exception) {
-                    viewModel.showMessage("Failed to write backup file")
-                }
+                viewModel.writeExport(jsonString) { context.contentResolver.openOutputStream(uri) }
             }
         }
     }
@@ -134,14 +128,7 @@ fun SettingsScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             viewModel.exportTransactionsCsv { csv ->
-                try {
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(csv.toByteArray(Charsets.UTF_8))
-                    }
-                    viewModel.showMessage("Transactions exported to CSV")
-                } catch (e: Exception) {
-                    viewModel.showMessage("Failed to write CSV file")
-                }
+                viewModel.writeExport(csv, isCsv = true) { context.contentResolver.openOutputStream(uri) }
             }
         }
     }
@@ -596,6 +583,16 @@ fun SettingsScreen(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    if (canUndoRestore) {
+                        OutlinedButton(
+                            onClick = { viewModel.undoRestore() },
+                            modifier = Modifier.fillMaxWidth().testTag("undo_restore_button")
+                        ) {
+                            Text("Undo restore")
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
 
                     // Text Clipboard Fallback
                     Row(
@@ -1187,10 +1184,10 @@ fun SettingsScreen(
                     modifier = Modifier.size(28.dp)
                 )
             },
-            title = { Text("Restore From File?", style = MaterialTheme.typography.titleLarge) },
+            title = { Text("Restore Backup?", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Text(
-                    text = "This replaces all current Piso data. Continue?",
+                    text = BackupData.fromJsonString(fileJson)!!.summary.confirmationText(),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -1316,7 +1313,7 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Paste your previously exported Piso JSON data below:",
+                        text = "Paste your previously exported Piso JSON data below. Restoring replaces all current Piso data. You will review the backup before restoring.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     OutlinedTextField(
@@ -1353,17 +1350,12 @@ fun SettingsScreen(
                             importErrorMessage = "This is not a valid Piso backup."
                             return@Button
                         }
-                        viewModel.importBackup(importJsonText) { success ->
-                            if (success) {
-                                showImportTextDialog = false
-                            } else {
-                                importErrorMessage = "This is not a valid Piso backup."
-                            }
-                        }
+                        pendingFileImportJson = importJsonText
+                        showImportTextDialog = false
                     },
                     modifier = Modifier.testTag("confirm_paste_import_button")
                 ) {
-                    Text("Restore")
+                    Text("Review Backup")
                 }
             },
             dismissButton = {
