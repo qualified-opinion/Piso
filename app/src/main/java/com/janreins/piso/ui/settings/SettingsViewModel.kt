@@ -111,7 +111,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun lockApp() {
-        profileManager.setSkipLockOnce(false)
         if (profileManager.hasPin()) {
             profileManager.lock()
             showMessage("Piso locked")
@@ -120,8 +119,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun setSkipLockOnce(value: Boolean = true) {
-        profileManager.setSkipLockOnce(value)
+    fun launchPicker(launch: () -> Unit) {
+        try {
+            profileManager.pickerLockExemption.launch(launch)
+        } catch (_: RuntimeException) {
+            showMessage("Couldn't open file picker")
+        }
     }
 
     // --- Backup & Restore & Clear ---

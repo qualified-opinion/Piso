@@ -35,12 +35,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val userProfile: StateFlow<UserProfile> = profileManager.userProfile
     val isAppLocked: StateFlow<Boolean> = profileManager.isLocked
 
-    val skipLockOnce: Boolean
-        get() = profileManager.skipLockOnce
-
-    fun setSkipLockOnce(value: Boolean = true) {
-        profileManager.setSkipLockOnce(value)
-    }
+    val pickerLockExemption = profileManager.pickerLockExemption
 
     fun createProfile(name: String, pin: String?) {
         profileManager.createProfile(name, pin)
@@ -65,7 +60,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun lockApp() {
-        profileManager.setSkipLockOnce(false)
         if (profileManager.hasPin()) {
             profileManager.lock()
             showMessage("Piso locked")
@@ -75,12 +69,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onAppBackgrounded() {
-        if (profileManager.consumeSkipLockOnce()) {
-            return
-        }
-        if (profileManager.hasPin()) {
+        if (pickerLockExemption.shouldLockOnStop()) {
             profileManager.lock()
         }
+    }
+
+    fun onAppStarted() {
+        if (pickerLockExemption.shouldLockOnStart()) profileManager.lock()
+    }
+
+    fun onAppResumed() {
+        if (pickerLockExemption.shouldLockOnResume()) profileManager.lock()
     }
 
     fun setPin(pin: String) {
