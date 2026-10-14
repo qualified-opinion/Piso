@@ -14,13 +14,17 @@ data class BackupData(
     val debts: List<Debt>,
     val investments: List<Investment>,
     val categories: List<UserCategory> = emptyList(),
-    val subcategories: List<UserSubcategory> = emptyList()
+    val subcategories: List<UserSubcategory> = emptyList(),
+    val version: Int = CURRENT_VERSION,
+    val exportedAt: Long? = System.currentTimeMillis(),
+    // Older backups may omit category data; preserve local categories in that case.
+    val hasCategoryData: Boolean = true
 ) {
     fun toJsonString(): String {
         val root = JSONObject()
-        root.put("version", 3)
+        root.put("version", CURRENT_VERSION)
         root.put("appName", "Piso")
-        root.put("exportedAt", System.currentTimeMillis())
+        root.put("exportedAt", exportedAt)
 
         val accArr = JSONArray()
         accounts.forEach { acc ->
@@ -132,23 +136,35 @@ data class BackupData(
         return root.toString(2)
     }
 
+    val summary: BackupSummary
+        get() = BackupSummary(version, exportedAt, accounts.size, transactions.size, budgets.size,
+            goals.size, debts.size, investments.size)
+
     companion object {
-        private val BACKUP_ARRAY_KEYS = listOf(
-            "accounts", "transactions", "budgets", "goals", "debts", "investments", "categories", "subcategories"
+        const val CURRENT_VERSION = 3
+        private val SUPPORTED_VERSIONS = setOf(1, 2, CURRENT_VERSION)
+        private val CORE_ARRAY_KEYS = listOf(
+            "accounts", "transactions", "budgets", "goals", "debts", "investments"
         )
 
         fun fromJsonString(jsonStr: String): BackupData? {
             return try {
                 val root = JSONObject(jsonStr)
 
-                // Reject JSON that isn't a Piso backup; otherwise an unrelated file (or "{}")
-                // would parse as an empty backup and a restore would wipe all data.
-                val isPisoBackup = root.optString("appName") == "Piso" ||
-                    BACKUP_ARRAY_KEYS.any { root.optJSONArray(it) != null }
-                if (!isPisoBackup) return null
+                val versionValue = root.opt("version")
+                if (versionValue !is Number || versionValue.toDouble() != versionValue.toInt().toDouble() ||
+                    versionValue.toInt() !in SUPPORTED_VERSIONS) return null
+                if (root.has("appName") && root.optString("appName") != "Piso") return null
+                if (CORE_ARRAY_KEYS.any { root.optJSONArray(it) == null }) return null
+                if (listOf("categories", "subcategories").any {
+                        root.has(it) && root.optJSONArray(it) == null
+                    }) return null
+                val exportedAt = if (root.has("exportedAt") && !root.isNull("exportedAt")) {
+                    root.getLong("exportedAt")
+                } else null
 
                 val accounts = mutableListOf<Account>()
-                val accArr = root.optJSONArray("accounts") ?: JSONArray()
+                val accArr = root.getJSONArray("accounts")
                 for (i in 0 until accArr.length()) {
                     val obj = accArr.getJSONObject(i)
                     accounts.add(
@@ -163,7 +179,7 @@ data class BackupData(
                 }
 
                 val transactions = mutableListOf<Transaction>()
-                val txArr = root.optJSONArray("transactions") ?: JSONArray()
+                val txArr = root.getJSONArray("transactions")
                 for (i in 0 until txArr.length()) {
                     val obj = txArr.getJSONObject(i)
                     transactions.add(
@@ -185,7 +201,7 @@ data class BackupData(
                 }
 
                 val budgets = mutableListOf<Budget>()
-                val bgtArr = root.optJSONArray("budgets") ?: JSONArray()
+                val bgtArr = root.getJSONArray("budgets")
                 for (i in 0 until bgtArr.length()) {
                     val obj = bgtArr.getJSONObject(i)
                     budgets.add(
@@ -199,7 +215,7 @@ data class BackupData(
                 }
 
                 val goals = mutableListOf<Goal>()
-                val goalArr = root.optJSONArray("goals") ?: JSONArray()
+                val goalArr = root.getJSONArray("goals")
                 for (i in 0 until goalArr.length()) {
                     val obj = goalArr.getJSONObject(i)
                     goals.add(
@@ -216,7 +232,7 @@ data class BackupData(
                 }
 
                 val debts = mutableListOf<Debt>()
-                val debtArr = root.optJSONArray("debts") ?: JSONArray()
+                val debtArr = root.getJSONArray("debts")
                 for (i in 0 until debtArr.length()) {
                     val obj = debtArr.getJSONObject(i)
                     debts.add(
@@ -233,7 +249,7 @@ data class BackupData(
                 }
 
                 val investments = mutableListOf<Investment>()
-                val invArr = root.optJSONArray("investments") ?: JSONArray()
+                val invArr = root.getJSONArray("investments")
                 for (i in 0 until invArr.length()) {
                     val obj = invArr.getJSONObject(i)
                     investments.add(
@@ -291,7 +307,9 @@ data class BackupData(
                     }
                 }
 
-                BackupData(accounts, transactions, budgets, goals, debts, investments, categories, subcategories)
+                BackupData(accounts, transactions, budgets, goals, debts, investments, categories, subcategories,
+                    version = versionValue.toInt(), exportedAt = exportedAt,
+                    hasCategoryData = root.has("categories"))
             } catch (_: Exception) {
                 null
             }

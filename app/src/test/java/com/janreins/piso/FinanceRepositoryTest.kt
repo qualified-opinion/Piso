@@ -12,7 +12,10 @@ import com.janreins.piso.data.models.Investment
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
+import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import com.janreins.piso.util.CurrencyUtil
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -30,6 +33,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class FinanceRepositoryTest {
 
+    @get:Rule val temporaryFolder = TemporaryFolder()
+
     private lateinit var database: AppDatabase
     private lateinit var repository: FinanceRepository
 
@@ -39,7 +44,7 @@ class FinanceRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = FinanceRepository(database)
+        repository = FinanceRepository(database, BackupSafety(temporaryFolder.newFolder("backups")))
     }
 
     @After
