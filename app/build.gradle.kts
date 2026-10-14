@@ -61,6 +61,11 @@ android {
     compose = true
     buildConfig = true
   }
+  sourceSets {
+    getByName("androidTest").assets.directories.add("$projectDir/schemas")
+    getByName("test").assets.directories.add("$projectDir/schemas")
+    getByName("test").resources.directories.add("$projectDir/schemas")
+  }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {
     includeInApk = false
@@ -95,6 +100,7 @@ dependencies {
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
+  testImplementation(libs.androidx.room.testing)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
@@ -109,4 +115,8 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
+}
+
+ksp {
+  arg("room.schemaLocation", "$projectDir/schemas")
 }
