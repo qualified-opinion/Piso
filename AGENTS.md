@@ -1,21 +1,23 @@
 # AGENTS.md
 
-## Project Overview
-JanReins/Piso is a private, 100% on-device, offline-only personal finance and money tracking Android application built with Kotlin, Jetpack Compose, Material 3, and Room Database.
+Start with `docs/plan/ROADMAP.md`. It holds the status table, the next batch and the decisions Jan still owes.
 
-- **Package Name / Application ID**: `com.janreins.piso`
-- **Database**: On-device SQLite via Room Database (`piso_database`).
-- **Network**: 100% local storage and offline execution. No remote API calls or cloud dependencies.
+## Project
+Piso (`qualified-opinion/Piso`, formerly `JanReins/Piso`) is Jan's private, 100% offline personal finance tracker for Android. Kotlin, Jetpack Compose, Material 3, Room (`piso_database`). Package and application id: `com.janreins.piso`. minSdk and targetSdk are in `app/build.gradle.kts`.
 
-## Key Build & Test Commands
-- **Run Unit Tests**: `./gradlew test`
-- **Build Debug APK**: `./gradlew assembleDebug`
-- **Build Release APK**: `./gradlew assembleRelease`
+## Hard rules
+- Offline only. No network calls, no `INTERNET` permission, no cloud sync, no analytics.
+- Privacy: keep `FLAG_SECURE`, `allowBackup="false"` and the backup and data-extraction rules that exclude everything. Never log money amounts or PINs.
+- Data safety: anything that deletes or replaces user data needs a safety copy or an explicit confirmation, plus a test.
+- Schema: any Room change needs a new migration, a committed schema JSON under `app/schemas/`, and a `DatabaseMigrationTest` case.
+- Money: round to centavos on every write (amounts are `Double` by design; see the ROADMAP cut list).
+- PIN and lock: `UserProfileManager` hashing and lockout and `PickerLockExemption` change only when a handoff pack says so, with tests.
 
-## Codebase Conventions & Constraints
-- **Offline Integrity**: Do not add network calls, remote API integrations, or cloud sync services.
-- **Do Not Touch**:
-  - `FinanceRepository` balance calculation, goal, and debt handling logic (unless explicitly instructed in a task brief).
-  - `UserProfileManager` PIN hashing, salt generation, and lockout mechanisms (unless explicitly instructed).
-  - Room entities, DAOs, and database migrations (`MIGRATION_1_2`, `MIGRATION_2_3` / database version changes). Any schema change needs a new migration plus a case in `DatabaseMigrationTest`.
-  - Compose UI screens, components, and navigation structures unless tasked specifically.
+## Build and test (what CI runs)
+`./gradlew test lintDebug assembleDebug assembleRelease` (`.github/workflows/android-ci.yml`).
+
+## Process
+- Work only from a handoff pack in `docs/plan/handoffs/`, on a feature branch. Open one PR per batch.
+- Never push to main, force-push, tag or create GitHub Releases. Jan releases himself. A signed APK is built only on request with the manual `android-release.yml` workflow.
+- Every batch PR updates the status table in `docs/plan/ROADMAP.md`.
+- Review uses a different engine than the builder. Merge is a squash pinned to the approved head, after green CI and Jan's OK.
