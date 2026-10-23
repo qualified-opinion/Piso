@@ -59,6 +59,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -1262,65 +1263,88 @@ fun SettingsScreen(
 
     // 8. Manual Text Import Dialog
     if (showImportTextDialog) {
-        var importJsonText by remember { mutableStateOf("") }
-        var importErrorMessage by remember { mutableStateOf<String?>(null) }
-
-        AlertDialog(
-            onDismissRequest = { showImportTextDialog = false },
-            title = { Text("Paste Backup JSON", style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Paste your previously exported Piso JSON data below. Restoring replaces all current Piso data. You will review the backup before restoring.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    OutlinedTextField(
-                        value = importJsonText,
-                        onValueChange = {
-                            importJsonText = it
-                            importErrorMessage = null
-                        },
-                        placeholder = { Text("Paste JSON backup here...") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(130.dp)
-                            .testTag("import_json_input"),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    if (importErrorMessage != null) {
-                        Text(
-                            text = importErrorMessage!!,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (importJsonText.isBlank()) {
-                            importErrorMessage = "Please paste JSON backup data."
-                            return@Button
-                        }
-                        val text = importJsonText
-                        viewModel.reviewBackup { text.byteInputStream() }
-                        showImportTextDialog = false
-                    },
-                    modifier = Modifier.testTag("confirm_paste_import_button")
-                ) {
-                    Text("Review Backup")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showImportTextDialog = false }
-                ) {
-                    Text("Cancel")
-                }
-            }
+        BackupPasteDialog(
+            backupImportState = backupImportState,
+            onReview = { text -> viewModel.reviewBackup { text.byteInputStream() } },
+            onDismiss = { showImportTextDialog = false }
         )
     }
+}
+
+@Composable
+internal fun BackupPasteDialog(
+    backupImportState: BackupImportState,
+    onReview: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var importJsonText by remember { mutableStateOf("") }
+    var validationError by remember { mutableStateOf<String?>(null) }
+    var reviewedText by remember { mutableStateOf<String?>(null) }
+    val importErrorMessage = validationError
+        ?: backupImportState.error.takeIf { reviewedText == importJsonText }
+
+    // Only consume results from a review started in this paste dialog.
+    LaunchedEffect(backupImportState) {
+        if (reviewedText != null && !backupImportState.isLoading && backupImportState.data != null) {
+            onDismiss()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paste Backup JSON", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Paste your previously exported Piso JSON data below. Restoring replaces all current Piso data. You will review the backup before restoring.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = importJsonText,
+                    onValueChange = {
+                        importJsonText = it
+                        validationError = null
+                    },
+                    placeholder = { Text("Paste JSON backup here...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .testTag("import_json_input"),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                importErrorMessage?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (importJsonText.isBlank()) {
+                        validationError = "Please paste JSON backup data."
+                        return@Button
+                    }
+                    reviewedText = importJsonText
+                    onReview(importJsonText)
+                },
+                enabled = !backupImportState.isLoading,
+                modifier = Modifier.testTag("confirm_paste_import_button")
+            ) {
+                Text("Review Backup")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
