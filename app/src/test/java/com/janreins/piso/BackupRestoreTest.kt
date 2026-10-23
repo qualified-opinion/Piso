@@ -263,6 +263,96 @@ class BackupRestoreTest {
     }
 
     @Test
+    fun clearWithOnlyCustomCategorySavesCopyAndUndoRestoresIt() = runBlocking {
+        repository.insertCategory(UserCategory(name = "Custom", kind = "EXPENSE"))
+        val prior = snapshot()
+        assertFalse(repository.hasUndoRestore())
+        repository.clearAllData()
+        val copy = directory.listFiles()!!.single()
+        assertTrue(copy.name.startsWith("pre-clear-"))
+        assertSameData(prior, BackupData.fromJsonString(copy.readText())!!)
+        assertFalse(snapshot().categories.any { it.name == "Custom" })
+        assertTrue(repository.undoRestore(copy.name))
+        assertSameData(prior, snapshot())
+        assertFalse(repository.hasUndoRestore())
+    }
+
+    @Test
+    fun clearWithOnlyCustomSubcategorySavesCopyAndUndoRestoresIt() = runBlocking {
+        repository.seedDefaultCategoriesIfEmpty()
+        repository.insertSubcategory(UserSubcategory(parentCategoryName = "Food", name = "Custom"))
+        val prior = snapshot()
+        assertFalse(repository.hasUndoRestore())
+        repository.clearAllData()
+        val copy = directory.listFiles()!!.single()
+        assertTrue(copy.name.startsWith("pre-clear-"))
+        assertSameData(prior, BackupData.fromJsonString(copy.readText())!!)
+        assertFalse(snapshot().subcategories.any { it.name == "Custom" })
+        assertTrue(repository.undoRestore(copy.name))
+        assertSameData(prior, snapshot())
+        assertFalse(repository.hasUndoRestore())
+    }
+
+    @Test
+    fun clearPreservesEditsAndRemovalsOfDefaultCategoriesAndSubcategories() = runBlocking {
+        repository.seedDefaultCategoriesIfEmpty()
+        val defaults = snapshot()
+        val category = defaults.categories.first()
+        val subcategory = defaults.subcategories.first()
+        val changedCategories = listOf(
+            category.copy(name = "Renamed"),
+            category.copy(kind = "INCOME"),
+            category.copy(isArchived = true)
+        ).map { edited ->
+            defaults.copy(categories = defaults.categories.map { if (it.id == category.id) edited else it })
+        }
+        val changedSubcategories = listOf(
+            subcategory.copy(name = "Renamed"),
+            subcategory.copy(parentCategoryName = "Transport"),
+            subcategory.copy(parentKind = "INCOME"),
+            subcategory.copy(isArchived = true)
+        ).map { edited ->
+            defaults.copy(subcategories = defaults.subcategories.map { if (it.id == subcategory.id) edited else it })
+        }
+        val removedDefaults = listOf(
+            defaults.copy(categories = defaults.categories.drop(1)),
+            defaults.copy(subcategories = defaults.subcategories.drop(1))
+        )
+        (changedCategories + changedSubcategories + removedDefaults).forEach { prior ->
+            assertTrue(repository.importBackupJson(prior.toJsonString()))
+            safety.deleteAll() // Only the clear should create an undo target.
+            repository.clearAllData()
+            val copy = directory.listFiles()!!.single()
+            assertTrue(copy.name.startsWith("pre-clear-"))
+            assertSameData(prior, BackupData.fromJsonString(copy.readText())!!)
+            assertTrue(repository.undoRestore(copy.name))
+            assertSameData(prior, snapshot())
+        }
+    }
+
+    @Test
+    fun clearWithDefaultsInDifferentIdOrderSkipsCopyAndCleanup() = runBlocking {
+        repository.seedDefaultCategoriesIfEmpty()
+        val defaults = snapshot()
+        val reordered = defaults.copy(
+            categories = defaults.categories.reversed().mapIndexed { index, category -> category.copy(id = 100L + index) },
+            subcategories = defaults.subcategories.reversed().mapIndexed { index, subcategory -> subcategory.copy(id = 100L + index) }
+        )
+        assertTrue(repository.importBackupJson(reordered.toJsonString()))
+        safety.deleteAll()
+        File(directory, "pending-leftover.tmp").writeText("partial ledger")
+        var deletionAttempted = false
+        val tracked = FinanceRepository(database, BackupSafety(directory) {
+            deletionAttempted = true
+            it.delete()
+        })
+        tracked.clearAllData()
+        assertFalse(repository.hasUndoRestore())
+        assertFalse(deletionAttempted)
+        assertEquals("partial ledger", directory.listFiles()!!.single().readText())
+    }
+
+    @Test
     fun clearingEmptyLedgerKeepsRealDataCopyAndSkipsCleanup() = runBlocking {
         val prior = fixture("Prior")
         assertTrue(repository.importBackupJson(prior.toJsonString()))

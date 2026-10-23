@@ -62,25 +62,31 @@ class FinanceRepository(
         categoryDao.getSubcategoriesForParent(parentName, parentKind)
 
     // --- Seeding Default Categories ---
+    private val defaultCategories = Categories.EXPENSE.map {
+        UserCategory(name = it, kind = "EXPENSE", isArchived = false)
+    } + Categories.INCOME.map {
+        UserCategory(name = it, kind = "INCOME", isArchived = false)
+    }
+    private val defaultSubcategories = listOf(
+        UserSubcategory(parentCategoryName = "Food", name = "Groceries", parentKind = "EXPENSE"),
+        UserSubcategory(parentCategoryName = "Food", name = "Dining out", parentKind = "EXPENSE"),
+        UserSubcategory(parentCategoryName = "Food", name = "Coffee", parentKind = "EXPENSE")
+    )
+
     suspend fun seedDefaultCategoriesIfEmpty() {
         val existing = categoryDao.getAllCategories().first()
         if (existing.isEmpty()) {
-            val expenseCats = Categories.EXPENSE.map {
-                UserCategory(name = it, kind = "EXPENSE", isArchived = false)
-            }
-            val incomeCats = Categories.INCOME.map {
-                UserCategory(name = it, kind = "INCOME", isArchived = false)
-            }
-            categoryDao.insertCategories(expenseCats + incomeCats)
-
-            val defaultFoodSubcategories = listOf(
-                UserSubcategory(parentCategoryName = "Food", name = "Groceries", parentKind = "EXPENSE"),
-                UserSubcategory(parentCategoryName = "Food", name = "Dining out", parentKind = "EXPENSE"),
-                UserSubcategory(parentCategoryName = "Food", name = "Coffee", parentKind = "EXPENSE")
-            )
-            categoryDao.insertSubcategories(defaultFoodSubcategories)
+            categoryDao.insertCategories(defaultCategories)
+            categoryDao.insertSubcategories(defaultSubcategories)
         }
     }
+
+    private fun hasDefaultCategories(data: BackupData): Boolean =
+        // Ignore generated IDs and row order, but preserve duplicate counts and all content.
+        data.categories.groupingBy { it.copy(id = 0) }.eachCount() ==
+            defaultCategories.groupingBy { it }.eachCount() &&
+        data.subcategories.groupingBy { it.copy(id = 0) }.eachCount() ==
+            defaultSubcategories.groupingBy { it }.eachCount()
 
     // --- User Category CRUD ---
     suspend fun insertCategory(category: UserCategory): Long =
@@ -443,6 +449,7 @@ class FinanceRepository(
                 if (file.name != expectedFileName) return@withTransaction false
                 val data = BackupData.fromJsonString(file.readText(Charsets.UTF_8)) ?: return@withTransaction false
                 consumed = file
+                // A kill before commit leaves undo hidden, but the DB rolls back without data loss.
                 safety.markConsumed(file)
                 replaceBackupData(data)
                 true
@@ -518,7 +525,7 @@ class FinanceRepository(
                 if (keepUndo) {
                     val data = readBackupData()
                     val empty = listOf(data.accounts, data.transactions, data.budgets, data.goals,
-                        data.debts, data.investments).all { it.isEmpty() }
+                        data.debts, data.investments).all { it.isEmpty() } && hasDefaultCategories(data)
                     if (!empty) saved = safety!!.save(data.toJsonString(), beforeClear = true)
                 }
                 clearTables()
