@@ -6,13 +6,17 @@ import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.janreins.piso.data.local.AppDatabase
+import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.ui.app.AppViewModel
 import com.janreins.piso.ui.settings.SettingsViewModel
 import com.janreins.piso.data.models.*
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
+import com.janreins.piso.ui.state.MainTab
+import com.janreins.piso.ui.state.MoreSubScreen
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,7 +118,7 @@ class BackupRestoreTest {
         assertSameData(prior, BackupData.fromJsonString(safety.latestBackup()!!.readText())!!)
         assertTrue(repository.hasUndoRestore())
         // A new instance still finds the app-private undo file.
-        assertTrue(FinanceRepository(database, BackupSafety(directory)).undoRestore())
+        assertTrue(FinanceRepository(database, BackupSafety(directory)).undoRestore(safety.latestBackup()!!.name))
         assertSameData(prior, snapshot())
     }
 
@@ -177,12 +181,12 @@ class BackupRestoreTest {
 
     @Test
     fun missingOrCorruptUndoFileLeavesDataAlone() = runBlocking {
-        assertFalse(repository.undoRestore())
+        assertFalse(repository.undoRestore("pre-import-0000000000000000000.json"))
         assertTrue(repository.importBackupJson(fixture("Prior").toJsonString()))
         val before = snapshot()
         val corrupt = safety.latestBackup()!!
         corrupt.writeText("corrupt")
-        assertFalse(repository.undoRestore())
+        assertFalse(repository.undoRestore(corrupt.name))
         assertSameData(before, snapshot())
         assertTrue(corrupt.exists())
         assertEquals("corrupt", corrupt.readText())
@@ -193,11 +197,90 @@ class BackupRestoreTest {
         assertTrue(repository.importBackupJson(fixture("Prior").toJsonString()))
         safety.deleteAll() // Initial fixture is not an import the user needs to undo.
         assertTrue(repository.importBackupJson(fixture("Imported").toJsonString()))
-        assertTrue(repository.undoRestore())
+        val confirmed = repository.undoRestoreInfo()!!
+        assertTrue(repository.undoRestore(confirmed.fileName))
         assertSameData(fixture("Prior"), snapshot())
         assertFalse(repository.hasUndoRestore())
-        assertFalse(repository.undoRestore())
+        assertFalse(repository.undoRestore(confirmed.fileName))
         assertSameData(fixture("Prior"), snapshot())
+    }
+
+    @Test
+    fun undoSucceedsWhenPostCommitDeleteFailsAndCopyCannotBeReused() = runBlocking {
+        repeat(3) { failureMode ->
+            val prior = fixture("Prior $failureMode")
+            assertTrue(repository.importBackupJson(prior.toJsonString()))
+            safety.deleteAll()
+            assertTrue(repository.importBackupJson(fixture("Imported").toJsonString()))
+            val copy = safety.latestBackup()!!
+            var deletionAttempted = false
+            val failingSafety = BackupSafety(directory) {
+                assertFalse(database.inTransaction())
+                deletionAttempted = true
+                when (failureMode) {
+                    0 -> false
+                    1 -> throw IOException("Simulated delete failure")
+                    else -> throw SecurityException("Simulated delete denial")
+                }
+            }
+            assertTrue(FinanceRepository(database, failingSafety).undoRestore(copy.name))
+            assertTrue(deletionAttempted)
+            assertTrue(copy.exists())
+            assertSameData(prior, snapshot())
+            // A later tap, even through a new repository, must not overwrite subsequent edits.
+            repository.updateAccount(prior.accounts.single().copy(name = "Edited after undo"))
+            val edited = snapshot()
+            val reopened = FinanceRepository(database, BackupSafety(directory))
+            assertFalse(reopened.hasUndoRestore())
+            assertNull(reopened.undoRestoreInfo())
+            assertFalse(reopened.undoRestore(copy.name))
+            assertSameData(edited, snapshot())
+        }
+    }
+
+    @Test
+    fun clearSucceedsWhenPostCommitCleanupThrows() = runBlocking {
+        repeat(2) { failureMode ->
+            val prior = fixture("Prior $failureMode")
+            assertTrue(repository.importBackupJson(prior.toJsonString()))
+            var deletionAttempted = false
+            val failingSafety = BackupSafety(directory) {
+                assertFalse(database.inTransaction())
+                deletionAttempted = true
+                if (failureMode == 0) throw IOException("Simulated delete failure")
+                else throw SecurityException("Simulated delete denial")
+            }
+            val result = runCatching { FinanceRepository(database, failingSafety).clearAllData() }
+            assertTrue(result.isSuccess)
+            assertTrue(deletionAttempted)
+            val empty = snapshot()
+            assertTrue(listOf(empty.accounts, empty.transactions, empty.budgets, empty.goals,
+                empty.debts, empty.investments).all { it.isEmpty() })
+            val copy = safety.latestBackup()!!
+            assertTrue(copy.name.startsWith("pre-clear-"))
+            assertSameData(prior, BackupData.fromJsonString(copy.readText())!!)
+        }
+    }
+
+    @Test
+    fun clearingEmptyLedgerKeepsRealDataCopyAndSkipsCleanup() = runBlocking {
+        val prior = fixture("Prior")
+        assertTrue(repository.importBackupJson(prior.toJsonString()))
+        repository.clearAllData()
+        val copy = safety.latestBackup()!!
+        File(directory, "pending-leftover.tmp").writeText("partial ledger")
+        val before = directory.listFiles()!!.associate { it.name to it.readText() }
+        var deletionAttempted = false
+        val tracked = FinanceRepository(database, BackupSafety(directory) {
+            deletionAttempted = true
+            it.delete()
+        })
+        repeat(2) { tracked.clearAllData(keepUndo = true) }
+        assertFalse(deletionAttempted)
+        assertEquals(before, directory.listFiles()!!.associate { it.name to it.readText() })
+        assertEquals(copy, safety.latestBackup())
+        assertTrue(repository.undoRestore(copy.name))
+        assertSameData(prior, snapshot())
     }
 
     @Test
@@ -216,7 +299,7 @@ class BackupRestoreTest {
         val empty = snapshot()
         assertTrue(listOf(empty.accounts, empty.transactions, empty.budgets, empty.goals,
             empty.debts, empty.investments).all { it.isEmpty() })
-        assertTrue(repository.undoRestore())
+        assertTrue(repository.undoRestore(copy.name))
         assertSameData(prior, snapshot())
         assertFalse(repository.hasUndoRestore())
     }
@@ -240,15 +323,20 @@ class BackupRestoreTest {
         database.openHelper.writableDatabase.execSQL(
             "CREATE TRIGGER fail_undo BEFORE INSERT ON transactions BEGIN SELECT RAISE(ABORT, 'test failure'); END"
         )
-        assertNotNull(runCatching { repository.undoRestore() }.exceptionOrNull())
+        assertNotNull(runCatching { repository.undoRestore(copy.name) }.exceptionOrNull())
         assertSameData(before, snapshot())
         assertEquals(copy, safety.latestBackup())
         assertTrue(copy.exists())
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun appResetDeletesAllCopiesAndPendingFilesAndClearsSettingsUndo() = runTest {
+    fun appResetDeletesAllCopiesAndPendingFilesAndClearsSettingsUndo() = verifyAppReset(deleteFails = false)
+
+    @Test
+    fun appResetStillClearsProfileAndNavigationWhenCleanupThrows() = verifyAppReset(deleteFails = true)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun verifyAppReset(deleteFails: Boolean) = runTest {
         Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val application = ApplicationProvider.getApplicationContext<Application>()
         val appSafety = BackupSafety(File(application.filesDir, "backups"))
@@ -261,6 +349,16 @@ class BackupRestoreTest {
             profile.createProfile("Juan", null)
             appSafety.deleteAll()
             val app = AppViewModel(application).also { store.put("app", it) }
+            var deletionAttempted = false
+            if (deleteFails) {
+                ReflectionHelpers.setField(app, "backupSafety", BackupSafety(File(application.filesDir, "backups")) {
+                    assertFalse(database.inTransaction())
+                    deletionAttempted = true
+                    throw IOException("Simulated delete failure")
+                })
+            }
+            app.selectTab(MainTab.MORE)
+            app.openMoreSubScreen(MoreSubScreen.SETTINGS)
             assertTrue(appRepository.importBackupJson(fixture("Prior").toJsonString()))
             appRepository.clearAllData()
             assertTrue(appRepository.importBackupJson(fixture("Imported").toJsonString()))
@@ -268,10 +366,18 @@ class BackupRestoreTest {
             val settings = SettingsViewModel(application).also { store.put("settings", it) }
             settings.canUndoRestore.first { it }
             app.clearAllDataAndReset()
+            profile.userProfile.first { it == UserProfile() }
             settings.canUndoRestore.first { !it }
+            app.currentTab.first { it == MainTab.HOME }
+            app.moreSubScreen.first { it == null }
             assertFalse(appRepository.hasUndoRestore())
-            assertTrue(File(application.filesDir, "backups").listFiles()!!.isEmpty())
+            assertEquals(MainTab.HOME, app.currentTab.value)
+            assertNull(app.moreSubScreen.value)
+            if (deleteFails) assertTrue(deletionAttempted)
+            else assertTrue(File(application.filesDir, "backups").listFiles()!!.isEmpty())
             assertTrue(BackupData.fromJsonString(appRepository.exportBackupJson())!!.accounts.isEmpty())
+            profile.createProfile("New profile", null)
+            assertNull(appRepository.undoRestoreInfo())
         } finally {
             store.clear()
             profile.clearProfile()
@@ -288,7 +394,7 @@ class BackupRestoreTest {
         val empty = BackupData(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
         assertTrue(repository.importBackupJson(empty.toJsonString()))
         assertSameData(empty, snapshot())
-        assertTrue(repository.undoRestore())
+        assertTrue(repository.undoRestore(safety.latestBackup()!!.name))
         assertSameData(prior, snapshot())
     }
 

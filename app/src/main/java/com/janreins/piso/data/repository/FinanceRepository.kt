@@ -434,18 +434,31 @@ class FinanceRepository(
         }
     }
 
-    suspend fun undoRestore(expectedFileName: String? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun undoRestore(expectedFileName: String): Boolean = withContext(Dispatchers.IO) {
+        val safety = backupSafety ?: return@withContext false
         var consumed: File? = null
-        val success = database.withTransaction {
-            val file = backupSafety?.latestBackup() ?: return@withTransaction false
-            if (expectedFileName != null && file.name != expectedFileName) return@withTransaction false
-            val data = BackupData.fromJsonString(file.readText(Charsets.UTF_8)) ?: return@withTransaction false
-            replaceBackupData(data)
-            consumed = file
-            true
+        val success = try {
+            database.withTransaction {
+                val file = safety.latestBackup() ?: return@withTransaction false
+                if (file.name != expectedFileName) return@withTransaction false
+                val data = BackupData.fromJsonString(file.readText(Charsets.UTF_8)) ?: return@withTransaction false
+                consumed = file
+                safety.markConsumed(file)
+                replaceBackupData(data)
+                true
+            }
+        } catch (failure: Throwable) {
+            // A rolled-back undo keeps its complete copy available for another attempt.
+            consumed?.let {
+                try {
+                    safety.cancelConsumption(it)
+                } catch (cleanupFailure: Exception) {
+                    failure.addSuppressed(cleanupFailure)
+                }
+            }
+            throw failure
         }
-        // Never consume the only copy until the replacement transaction has committed.
-        if (success && consumed?.delete() != true) throw IOException("Cannot consume safety backup")
+        if (success) consumed?.let { safety.deleteConsumed(it) }
         success
     }
 
@@ -502,7 +515,12 @@ class FinanceRepository(
         var saved: File? = null
         try {
             database.withTransaction {
-                if (keepUndo) saved = safety!!.save(readBackupData().toJsonString(), beforeClear = true)
+                if (keepUndo) {
+                    val data = readBackupData()
+                    val empty = listOf(data.accounts, data.transactions, data.budgets, data.goals,
+                        data.debts, data.investments).all { it.isEmpty() }
+                    if (!empty) saved = safety!!.save(data.toJsonString(), beforeClear = true)
+                }
                 clearTables()
             }
         } catch (failure: Throwable) {
@@ -510,7 +528,7 @@ class FinanceRepository(
             throw failure
         }
         // Only discard older copies after the clear commits.
-        if (keepUndo) safety!!.deleteAll(except = saved)
+        if (saved != null) safety!!.deleteAllBestEffort(except = saved)
     }
 
     private suspend fun clearTables() {

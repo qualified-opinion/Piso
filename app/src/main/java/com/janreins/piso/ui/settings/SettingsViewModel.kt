@@ -26,7 +26,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -62,7 +64,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val db = AppDatabase.getDatabase(application)
         repository = FinanceRepository(db, BackupSafety(File(application.filesDir, "backups")))
         viewModelScope.launch {
-            profileManager.userProfile.collect { refreshUndoRestore() }
+            profileManager.userProfile
+                .map { it.displayName.isBlank() }
+                .distinctUntilChanged()
+                .collect { refreshUndoRestore() }
         }
     }
 
@@ -205,7 +210,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 } catch (e: Exception) {
                     false
                 }
-                showMessage(if (success) "Previous data restored" else "Couldn't undo restore. Your current data was kept.")
+                showMessage(if (success) "Undo ${confirmed.action} complete. Previous data restored."
+                    else "Couldn't undo ${confirmed.action}. Your current data was kept.")
                 refreshUndoRestore()
             } finally {
                 restoreInProgress = false

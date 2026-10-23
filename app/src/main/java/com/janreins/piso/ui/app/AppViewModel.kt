@@ -115,7 +115,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAllDataAndReset() {
         viewModelScope.launch {
             repository.clearAllData(keepUndo = false)
-            withContext(Dispatchers.IO) { backupSafety.deleteAll() }
+            withContext(Dispatchers.IO) { backupSafety.deleteAllBestEffort() }
             profileManager.clearProfile()
             _currentTab.value = MainTab.HOME
             _moreSubScreen.value = null
