@@ -359,6 +359,10 @@ class FinanceRepository(
             // payment took off the debt and deleting it adds back exactly that.
             val applied = roundCents(minOf(amount, debt.remainingAmount))
             if (applied <= 0.0) return@withTransaction
+            if (fromAccountId == null) {
+                debtDao.updateDebt(debt.copy(remainingAmount = roundCents(max(0.0, debt.remainingAmount - applied))))
+                return@withTransaction
+            }
             val tx = Transaction(
                 dateMillis = System.currentTimeMillis(),
                 type = "EXPENSE",
@@ -419,10 +423,12 @@ class FinanceRepository(
         subcategories = categoryDao.getAllSubcategories().first()
     )
 
-    suspend fun importBackupJson(jsonString: String): Boolean {
-        val data = BackupData.fromJsonString(jsonString) ?: return false
-        return restoreBackup { data }
+    suspend fun importBackupJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
+        val data = BackupData.fromJsonString(jsonString) ?: return@withContext false
+        importBackup(data)
     }
+
+    suspend fun importBackup(data: BackupData): Boolean = restoreBackup { data }
 
     suspend fun hasUndoRestore(): Boolean = withContext(Dispatchers.IO) {
         backupSafety?.latestBackup() != null

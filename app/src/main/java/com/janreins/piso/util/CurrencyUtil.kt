@@ -42,9 +42,18 @@ object CurrencyUtil {
      * Returns null for blank, malformed, NaN, or infinite input.
      */
     fun parseAmount(text: String): Double? {
+        return parseFiniteAmount(text)?.let(::roundCents)
+    }
+
+    /** Investment values may reach zero, but negative input is rejected before rounding. */
+    fun parseNonNegativeAmount(text: String): Double? {
+        return parseFiniteAmount(text)?.takeIf { it >= 0.0 }?.let(::roundCents)
+    }
+
+    private fun parseFiniteAmount(text: String): Double? {
         val clean = text.trim().replace(",", "").replace("₱", "")
         val value = clean.toDoubleOrNull() ?: return null
-        return if (value.isFinite()) roundCents(value) else null
+        return value.takeIf { it.isFinite() }
     }
 
     /**

@@ -44,6 +44,7 @@ fun BudgetDialog(
     onDismiss: () -> Unit,
     onSave: (Budget) -> Unit
 ) {
+    val budgetMonthKey = initialBudget?.monthKey ?: monthKey
     val expenseCategories = remember(categories) {
         val custom = categories.filter { it.kind.equals("EXPENSE", ignoreCase = true) && !it.isArchived }.map { it.name }
         if (custom.isNotEmpty()) custom else Categories.EXPENSE
@@ -81,7 +82,7 @@ fun BudgetDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "For ${DateUtil.getMonthDisplayName(monthKey)}",
+                    text = "For ${DateUtil.getMonthDisplayName(budgetMonthKey)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -164,7 +165,7 @@ fun BudgetDialog(
                         id = initialBudget?.id ?: 0L,
                         category = category.trim(),
                         limitAmount = parsedLimit,
-                        monthKey = monthKey
+                        monthKey = budgetMonthKey
                     )
                     onSave(budget)
                 },

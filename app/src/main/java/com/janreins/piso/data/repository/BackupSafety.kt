@@ -107,6 +107,7 @@ class BackupSafety(
     fun prune() {
         // Retention is best effort: cleanup must not turn a committed restore into a failure.
         try {
+            copies().filter { consumedMarker(it).exists() }.forEach { deleteConsumed(it) }
             backups().drop(3).forEach { it.delete() }
         } catch (_: SecurityException) {
             // Leave extra copies if storage no longer permits cleanup.

@@ -85,7 +85,7 @@ fun DebtPaymentDialog(
 
                 // Paid From Account
                 if (accounts.isNotEmpty()) {
-                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: "None (Just adjust debt remaining)"
+                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: "No account (only lower what I owe)"
                     ExposedDropdownMenuBox(
                         expanded = accountDropdownExpanded,
                         onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
@@ -108,7 +108,7 @@ fun DebtPaymentDialog(
                             onDismissRequest = { accountDropdownExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("None (Just adjust debt remaining)") },
+                                text = { Text("No account (only lower what I owe)") },
                                 onClick = {
                                     selectedAccountId = null
                                     accountDropdownExpanded = false
