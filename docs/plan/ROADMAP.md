@@ -23,7 +23,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | Docs | `docs/piso-roadmap` | This folder, plus `AGENTS.md` and `CLAUDE.md` | Merged, PR #9, `a0c60b7` | none |
 | B5 | `fix/piso-b5-safety-copies` | P20, P21, P22, P24 safety-copy hygiene | Merged, PR #10, `622df4f` | [batch5](handoffs/batch5-safety-copies.md) |
 | B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26, U4, B5 leftover copy cleanup | Merged, PR #11, `3d4ce09` | [batch6](handoffs/batch6-small-fixes.md) |
-| B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | In review | [batch7](handoffs/batch7-backdate.md) |
+| B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | In review, PR #13 | [batch7](handoffs/batch7-backdate.md) |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Pack ready, waiting on Jan's go (after B7) | [batch8](handoffs/batch8-goal-out-adjust.md) |
 | B9 | `fix/piso-b9-lock-policy` | P13, depending on Jan's decision (P12 optional) | Needs decision D1 | none |
 | B10 | `feat/piso-b10-schema` | U2 account archive, U3 past-month budgets (database version 4) | Needs decision D4 | none |
