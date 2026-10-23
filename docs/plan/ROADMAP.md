@@ -15,7 +15,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B2 | `fix/piso-b2-backup` | P02, P14, P18 backup and restore safety | Merged, PR #7, `c428b76` | review 1 |
 | B4 | `fix/piso-b4-lock` | P03, P07, P11 lock fixes | Merged, PR #8, `b78d388` | review 1 |
 | Docs | `docs/piso-roadmap` | This folder, plus `AGENTS.md` and `CLAUDE.md` | Not started | none |
-| B5 | `fix/piso-b5-safety-copies` | P20, P21, P22, P24 safety-copy hygiene | Waiting on Jan's go | [batch5](handoffs/batch5-safety-copies.md) |
+| B5 | `fix/piso-b5-safety-copies` | P20, P21, P22, P24 safety-copy hygiene | In review, PR #10 | [batch5](handoffs/batch5-safety-copies.md) |
 | B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26 | Outline only | none |
 | B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves | Outline only | none |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Outline only | none |

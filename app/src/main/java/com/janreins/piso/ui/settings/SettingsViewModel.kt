@@ -11,6 +11,7 @@ import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
+import com.janreins.piso.data.repository.UndoRestoreInfo
 import com.janreins.piso.util.CsvExporter
 import com.janreins.piso.util.ExportWriter
 import java.io.File
@@ -24,7 +25,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -48,10 +51,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _canUndoRestore = MutableStateFlow(false)
     val canUndoRestore: StateFlow<Boolean> = _canUndoRestore.asStateFlow()
 
+    private val _undoRestoreInfo = MutableStateFlow<UndoRestoreInfo?>(null)
+    val undoRestoreInfo: StateFlow<UndoRestoreInfo?> = _undoRestoreInfo.asStateFlow()
+
+    private suspend fun refreshUndoRestore() {
+        _undoRestoreInfo.value = repository.undoRestoreInfo()
+        _canUndoRestore.value = _undoRestoreInfo.value != null
+    }
+
     init {
         val db = AppDatabase.getDatabase(application)
         repository = FinanceRepository(db, BackupSafety(File(application.filesDir, "backups")))
-        viewModelScope.launch { _canUndoRestore.value = repository.hasUndoRestore() }
+        viewModelScope.launch {
+            profileManager.userProfile
+                .map { it.displayName.isBlank() }
+                .distinctUntilChanged()
+                .collect { refreshUndoRestore() }
+        }
     }
 
     val userProfile: StateFlow<UserProfile> = profileManager.userProfile
@@ -169,7 +185,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     false
                 }
                 if (success) {
-                    _canUndoRestore.value = true
+                    refreshUndoRestore()
                     showMessage("Data restored successfully. Undo restore is available.")
                 } else {
                     showMessage("Restore failed. Your current data was kept. Check the backup and available storage.")
@@ -181,20 +197,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun undoRestore() {
+    fun undoRestore(confirmed: UndoRestoreInfo) {
         if (restoreInProgress) return
         restoreInProgress = true
         viewModelScope.launch {
             try {
                 val success = try {
-                    repository.undoRestore()
+                    repository.undoRestore(confirmed.fileName)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     false
                 }
-                showMessage(if (success) "Previous data restored" else "Couldn't undo restore. Your current data was kept.")
-                _canUndoRestore.value = repository.hasUndoRestore()
+                showMessage(if (success) "Undo ${confirmed.action} complete. Previous data restored."
+                    else "Couldn't undo ${confirmed.action}. Your current data was kept.")
+                refreshUndoRestore()
             } finally {
                 restoreInProgress = false
             }
@@ -215,9 +232,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun clearAllData() {
+        if (restoreInProgress) return
+        restoreInProgress = true
         viewModelScope.launch {
-            repository.clearAllData()
-            showMessage("All data cleared")
+            try {
+                repository.clearAllData()
+                refreshUndoRestore()
+                showMessage("All data cleared. You can undo this once from Settings.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showMessage("Couldn't clear all data. Check available storage.")
+            } finally {
+                restoreInProgress = false
+            }
         }
     }
 

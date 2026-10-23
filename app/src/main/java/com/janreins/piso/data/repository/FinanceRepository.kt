@@ -16,6 +16,7 @@ import com.janreins.piso.util.CurrencyUtil.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlin.math.max
@@ -61,25 +62,31 @@ class FinanceRepository(
         categoryDao.getSubcategoriesForParent(parentName, parentKind)
 
     // --- Seeding Default Categories ---
+    private val defaultCategories = Categories.EXPENSE.map {
+        UserCategory(name = it, kind = "EXPENSE", isArchived = false)
+    } + Categories.INCOME.map {
+        UserCategory(name = it, kind = "INCOME", isArchived = false)
+    }
+    private val defaultSubcategories = listOf(
+        UserSubcategory(parentCategoryName = "Food", name = "Groceries", parentKind = "EXPENSE"),
+        UserSubcategory(parentCategoryName = "Food", name = "Dining out", parentKind = "EXPENSE"),
+        UserSubcategory(parentCategoryName = "Food", name = "Coffee", parentKind = "EXPENSE")
+    )
+
     suspend fun seedDefaultCategoriesIfEmpty() {
         val existing = categoryDao.getAllCategories().first()
         if (existing.isEmpty()) {
-            val expenseCats = Categories.EXPENSE.map {
-                UserCategory(name = it, kind = "EXPENSE", isArchived = false)
-            }
-            val incomeCats = Categories.INCOME.map {
-                UserCategory(name = it, kind = "INCOME", isArchived = false)
-            }
-            categoryDao.insertCategories(expenseCats + incomeCats)
-
-            val defaultFoodSubcategories = listOf(
-                UserSubcategory(parentCategoryName = "Food", name = "Groceries", parentKind = "EXPENSE"),
-                UserSubcategory(parentCategoryName = "Food", name = "Dining out", parentKind = "EXPENSE"),
-                UserSubcategory(parentCategoryName = "Food", name = "Coffee", parentKind = "EXPENSE")
-            )
-            categoryDao.insertSubcategories(defaultFoodSubcategories)
+            categoryDao.insertCategories(defaultCategories)
+            categoryDao.insertSubcategories(defaultSubcategories)
         }
     }
+
+    private fun hasDefaultCategories(data: BackupData): Boolean =
+        // Ignore generated IDs and row order, but preserve duplicate counts and all content.
+        data.categories.groupingBy { it.copy(id = 0) }.eachCount() ==
+            defaultCategories.groupingBy { it }.eachCount() &&
+        data.subcategories.groupingBy { it.copy(id = 0) }.eachCount() ==
+            defaultSubcategories.groupingBy { it }.eachCount()
 
     // --- User Category CRUD ---
     suspend fun insertCategory(category: UserCategory): Long =
@@ -421,8 +428,45 @@ class FinanceRepository(
         backupSafety?.latestBackup() != null
     }
 
-    suspend fun undoRestore(): Boolean = restoreBackup {
-        backupSafety?.latestBackup()?.readText(Charsets.UTF_8)?.let(BackupData::fromJsonString)
+    suspend fun undoRestoreInfo(): UndoRestoreInfo? = withContext(Dispatchers.IO) {
+        try {
+            backupSafety?.latestBackup()?.let { file ->
+                BackupData.fromJsonString(file.readText(Charsets.UTF_8))?.let {
+                    UndoRestoreInfo(file.name, it.summary)
+                }
+            }
+        } catch (_: IOException) {
+            null // A concurrent reset may have removed the copy while Settings was reading it.
+        }
+    }
+
+    suspend fun undoRestore(expectedFileName: String): Boolean = withContext(Dispatchers.IO) {
+        val safety = backupSafety ?: return@withContext false
+        var consumed: File? = null
+        val success = try {
+            database.withTransaction {
+                val file = safety.latestBackup() ?: return@withTransaction false
+                if (file.name != expectedFileName) return@withTransaction false
+                val data = BackupData.fromJsonString(file.readText(Charsets.UTF_8)) ?: return@withTransaction false
+                consumed = file
+                // A kill before commit leaves undo hidden, but the DB rolls back without data loss.
+                safety.markConsumed(file)
+                replaceBackupData(data)
+                true
+            }
+        } catch (failure: Throwable) {
+            // A rolled-back undo keeps its complete copy available for another attempt.
+            consumed?.let {
+                try {
+                    safety.cancelConsumption(it)
+                } catch (cleanupFailure: Exception) {
+                    failure.addSuppressed(cleanupFailure)
+                }
+            }
+            throw failure
+        }
+        if (success) consumed?.let { safety.deleteConsumed(it) }
+        success
     }
 
     private suspend fun restoreBackup(load: () -> BackupData?): Boolean = withContext(Dispatchers.IO) {
@@ -472,18 +516,38 @@ class FinanceRepository(
         }
     }
 
-    suspend fun clearAllData() {
-        database.withTransaction {
-            accountDao.clearAccounts()
-            transactionDao.clearTransactions()
-            budgetDao.clearBudgets()
-            goalDao.clearGoals()
-            debtDao.clearDebts()
-            investmentDao.clearInvestments()
-            // Reset categories to defaults
-            categoryDao.clearCategories()
-            categoryDao.clearSubcategories()
-            seedDefaultCategoriesIfEmpty()
+    suspend fun clearAllData(keepUndo: Boolean = true): Unit = withContext(Dispatchers.IO) {
+        val safety = if (keepUndo) checkNotNull(backupSafety) { "Safety backup storage is required for clear" }
+            else backupSafety
+        var saved: File? = null
+        try {
+            database.withTransaction {
+                if (keepUndo) {
+                    val data = readBackupData()
+                    val empty = listOf(data.accounts, data.transactions, data.budgets, data.goals,
+                        data.debts, data.investments).all { it.isEmpty() } && hasDefaultCategories(data)
+                    if (!empty) saved = safety!!.save(data.toJsonString(), beforeClear = true)
+                }
+                clearTables()
+            }
+        } catch (failure: Throwable) {
+            saved?.delete()
+            throw failure
         }
+        // Only discard older copies after the clear commits.
+        if (saved != null) safety!!.deleteAllBestEffort(except = saved)
+    }
+
+    private suspend fun clearTables() {
+        accountDao.clearAccounts()
+        transactionDao.clearTransactions()
+        budgetDao.clearBudgets()
+        goalDao.clearGoals()
+        debtDao.clearDebts()
+        investmentDao.clearInvestments()
+        // Reset categories to defaults
+        categoryDao.clearCategories()
+        categoryDao.clearSubcategories()
+        seedDefaultCategoriesIfEmpty()
     }
 }
