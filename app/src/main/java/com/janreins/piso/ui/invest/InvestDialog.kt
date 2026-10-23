@@ -176,7 +176,7 @@ fun InvestDialog(
                         errorMessage = "Asset name cannot be blank."
                         return@Button
                     }
-                    val parsedValue = CurrencyUtil.parsePositiveAmount(valueText)
+                    val parsedValue = CurrencyUtil.parseNonNegativeAmount(valueText)
                     if (parsedValue == null || parsedValue < 0) {
                         errorMessage = "Please enter a valid current value."
                         return@Button

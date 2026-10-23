@@ -76,7 +76,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.piso.data.local.ThemeMode
 import com.janreins.piso.data.local.isWeakPin
-import com.janreins.piso.data.models.BackupData
 import com.janreins.piso.data.repository.UndoRestoreInfo
 import com.janreins.piso.ui.components.ConfirmDialog
 import com.janreins.piso.ui.components.PinDots
@@ -86,8 +85,6 @@ import com.janreins.piso.ui.components.PisoTopBar
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -115,7 +112,7 @@ fun SettingsScreen(
     var showImportTextDialog by remember { mutableStateOf(false) }
 
     var pendingUndo by remember { mutableStateOf<UndoRestoreInfo?>(null) }
-    var pendingFileImportJson by remember { mutableStateOf<String?>(null) }
+    val backupImportState by viewModel.backupImportState.collectAsStateWithLifecycle()
 
     // System File Pickers
     val createDocLauncher = rememberLauncherForActivityResult(
@@ -142,21 +139,7 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val reader = BufferedReader(InputStreamReader(inputStream))
-                val content = reader.use { it.readText() }
-
-                // Validate before asking
-                val parsed = BackupData.fromJsonString(content)
-                if (parsed != null) {
-                    pendingFileImportJson = content
-                } else {
-                    viewModel.showMessage("This is not a valid Piso backup.")
-                }
-            } catch (e: Exception) {
-                viewModel.showMessage("This is not a valid Piso backup.")
-            }
+            viewModel.reviewBackup { context.contentResolver.openInputStream(uri) }
         }
     }
 
@@ -1177,9 +1160,9 @@ fun SettingsScreen(
     }
 
     // 5. File Import Confirm Dialog
-    pendingFileImportJson?.let { fileJson ->
+    backupImportState.summary?.let { summary ->
         AlertDialog(
-            onDismissRequest = { pendingFileImportJson = null },
+            onDismissRequest = viewModel::dismissBackupPreview,
             icon = {
                 Icon(
                     imageVector = Icons.Default.Warning,
@@ -1191,15 +1174,15 @@ fun SettingsScreen(
             title = { Text("Restore Backup?", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Text(
-                    text = BackupData.fromJsonString(fileJson)!!.summary.confirmationText(),
+                    text = summary.confirmationText(),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.importBackup(fileJson) {
-                            pendingFileImportJson = null
+                        viewModel.importBackup {
+                            viewModel.dismissBackupPreview()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
@@ -1210,7 +1193,7 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { pendingFileImportJson = null },
+                    onClick = viewModel::dismissBackupPreview,
                     modifier = Modifier.testTag("cancel_file_import_button")
                 ) {
                     Text("Cancel")
@@ -1250,76 +1233,29 @@ fun SettingsScreen(
 
     // 7. Manual Text Export Dialog
     showExportTextDialog?.let { jsonString ->
-        AlertDialog(
-            onDismissRequest = { showExportTextDialog = null },
-            title = { Text("Backup Text Ready", style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Column {
-                    Text(
-                        text = "You can copy this backup to clipboard or share it:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(120.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = jsonString.take(400) + if (jsonString.length > 400) "..." else "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "This copy is not locked. Anyone with the file can read your amounts. Prefer Export File to a private folder.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        lineHeight = 16.sp
-                    )
+        BackupTextDialog(
+            jsonString = jsonString,
+            onDismiss = { showExportTextDialog = null },
+            onCopy = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Piso Backup", jsonString)
+                clip.description.extras = PersistableBundle().apply {
+                    val sensitiveKey = if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE
+                        else "android.content.extra.IS_SENSITIVE"
+                    putBoolean(sensitiveKey, true)
                 }
+                clipboard.setPrimaryClip(clip)
+                viewModel.showMessage("Backup copied to clipboard")
+                showExportTextDialog = null
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("Piso Backup", jsonString)
-                        clip.description.extras = PersistableBundle().apply {
-                            val sensitiveKey = if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE
-                                else "android.content.extra.IS_SENSITIVE"
-                            putBoolean(sensitiveKey, true)
-                        }
-                        clipboard.setPrimaryClip(clip)
-                        viewModel.showMessage("Backup copied to clipboard")
-                        showExportTextDialog = null
-                    },
-                    modifier = Modifier.testTag("copy_backup_text_button")
-                ) {
-                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Copy")
+            onShare = {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "Piso Backup")
+                    putExtra(Intent.EXTRA_TEXT, jsonString)
                 }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Piso Backup")
-                            putExtra(Intent.EXTRA_TEXT, jsonString)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share Backup"))
-                        showExportTextDialog = null
-                    }
-                ) {
-                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share")
-                }
+                context.startActivity(Intent.createChooser(shareIntent, "Share Backup"))
+                showExportTextDialog = null
             }
         )
     }
@@ -1367,12 +1303,8 @@ fun SettingsScreen(
                             importErrorMessage = "Please paste JSON backup data."
                             return@Button
                         }
-                        val parsed = BackupData.fromJsonString(importJsonText)
-                        if (parsed == null) {
-                            importErrorMessage = "This is not a valid Piso backup."
-                            return@Button
-                        }
-                        pendingFileImportJson = importJsonText
+                        val text = importJsonText
+                        viewModel.reviewBackup { text.byteInputStream() }
                         showImportTextDialog = false
                     },
                     modifier = Modifier.testTag("confirm_paste_import_button")
@@ -1389,6 +1321,72 @@ fun SettingsScreen(
             }
         )
     }
+}
+
+@Composable
+internal fun BackupTextDialog(
+    jsonString: String,
+    onDismiss: () -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Backup Text Ready", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column {
+                Text(
+                    text = "You can copy this backup to clipboard or share it:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "Piso will ask for your PIN when you come back from sharing.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = jsonString.take(400) + if (jsonString.length > 400) "..." else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "This copy is not locked. Anyone with the file can read your amounts. Prefer Export File to a private folder.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    lineHeight = 16.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onCopy,
+                modifier = Modifier.testTag("copy_backup_text_button")
+            ) {
+                Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Copy")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onShare
+            ) {
+                Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Share")
+            }
+        }
+    )
 }
 
 @Composable

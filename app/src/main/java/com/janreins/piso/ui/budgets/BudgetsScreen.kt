@@ -348,7 +348,7 @@ fun BudgetsScreen(
     budgetToEdit?.let { currentBudget ->
         BudgetDialog(
             initialBudget = currentBudget,
-            monthKey = currentMonthKey,
+            monthKey = currentBudget.monthKey,
             existingCategories = currentBudgets.map { it.category },
             categories = categories,
             onDismiss = { budgetToEdit = null },

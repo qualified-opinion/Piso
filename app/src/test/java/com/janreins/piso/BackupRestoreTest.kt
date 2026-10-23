@@ -239,6 +239,26 @@ class BackupRestoreTest {
     }
 
     @Test
+    fun nextSuccessfulImportDeletesConsumedCopyLeftByFailedUndoDeletion() = runBlocking {
+        assertTrue(repository.importBackupJson(fixture("Prior").toJsonString()))
+        safety.deleteAll()
+        assertTrue(repository.importBackupJson(fixture("Imported").toJsonString()))
+        val consumed = safety.latestBackup()!!
+        val failingDelete = FinanceRepository(database, BackupSafety(directory) { false })
+        assertTrue(failingDelete.undoRestore(consumed.name))
+        val marker = File(directory, "consumed-${consumed.name}")
+        assertTrue(consumed.exists())
+        assertTrue(marker.exists())
+        assertFalse(repository.importBackupJson("invalid"))
+        assertTrue(consumed.exists())
+        assertTrue(repository.importBackupJson(fixture("Next").toJsonString()))
+        assertFalse(consumed.exists())
+        assertFalse(marker.exists())
+        assertSameData(fixture("Prior"), BackupData.fromJsonString(safety.latestBackup()!!.readText())!!)
+        assertSameData(fixture("Next"), snapshot())
+    }
+
+    @Test
     fun clearSucceedsWhenPostCommitCleanupThrows() = runBlocking {
         repeat(2) { failureMode ->
             val prior = fixture("Prior $failureMode")

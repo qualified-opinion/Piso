@@ -164,6 +164,29 @@ class FinanceRepositoryTest {
 
         assertEquals(7500.0, updatedDebt!!.remainingAmount, 0.001)
         assertEquals(12500.0, updatedAccount!!.balance, 0.001)
+        val payment = repository.allTransactions.first().single()
+        assertEquals("EXPENSE", payment.type)
+        assertEquals("Debt", payment.category)
+        assertEquals(accountId, payment.accountId)
+        assertEquals(debtId, payment.debtId)
+        assertEquals(2500.0, payment.amount, 0.0)
+    }
+
+    @Test
+    fun noAccountPaymentLowersDebtWithoutChangingTransactionsOrAccounts() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 500.0))
+        val debtId = repository.insertDebt(
+            Debt(name = "IOU", kind = "Family", originalAmount = 800.0, remainingAmount = 800.0)
+        )
+        repository.addTransaction(Transaction(type = "EXPENSE", category = "Debt", amount = 25.0, accountId = wallet))
+        val before = repository.allTransactions.first()
+        repository.recordDebtPayment(debtId, 200.005, null)
+        assertEquals(599.99, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.0)
+        assertEquals(before, repository.allTransactions.first())
+        assertEquals(475.0, balanceOf(wallet), 0.0)
+        repository.recordDebtPayment(debtId, 1000.0, null)
+        assertEquals(0.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.0)
+        assertEquals(before, repository.allTransactions.first())
     }
 
     @Test
@@ -252,10 +275,11 @@ class FinanceRepositoryTest {
 
     @Test
     fun testOverpaymentIsCappedAndDeletingRestoresExactlyWhatWasOwed() = runBlocking {
+        val accountId = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
         val debtId = repository.insertDebt(
             Debt(name = "IOU", kind = "Family", originalAmount = 800.0, remainingAmount = 800.0)
         )
-        repository.recordDebtPayment(debtId, 1000.0, null)
+        repository.recordDebtPayment(debtId, 1000.0, accountId)
         assertEquals(0.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.001)
         assertEquals(800.0, repository.allTransactions.first().single().amount, 0.001)
 

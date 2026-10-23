@@ -16,7 +16,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B4 | `fix/piso-b4-lock` | P03, P07, P11 lock fixes | Merged, PR #8, `b78d388` | review 1 |
 | Docs | `docs/piso-roadmap` | This folder, plus `AGENTS.md` and `CLAUDE.md` | Not started | none |
 | B5 | `fix/piso-b5-safety-copies` | P20, P21, P22, P24 safety-copy hygiene | Merged, PR #10 (622df4f) | [batch5](handoffs/batch5-safety-copies.md) |
-| B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26, U4, B5 leftover copy cleanup | In progress | [batch6](handoffs/batch6-small-fixes.md) |
+| B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26, U4, B5 leftover copy cleanup | In review | [batch6](handoffs/batch6-small-fixes.md) |
 | B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves | Outline only | none |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Outline only | none |
 | B9 | `fix/piso-b9-lock-policy` | P13, depending on Jan's decision (P12 optional) | Needs decision D1 | none |
@@ -42,22 +42,22 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | P12 | P3 | PIN key derivation (KDF) | Cut for now, optional in B9 |
 | P13 | P3 | RESET from the lock screen | B9, decision D1 |
 | P14 | P3 | Honest export result | Fixed in B2 |
-| P15 | P3 | Budget edit keeps its month | B6 |
-| P16 | P3 | Allow ₱0 investment value | B6 |
+| P15 | P3 | Budget edit keeps its month | Fixed in B6 |
+| P16 | P3 | Allow ₱0 investment value | Fixed in B6 |
 | P17 | P3 | Accounting time zone | Cut |
 | P18 | P3 | Consistent export snapshot | Fixed in B2 |
 | P19 | P3 | Money stored as `Double` | Cut |
 | P20 | **P1** | Reset leaves the safety backups, so the lock can be bypassed through Undo restore | Fixed in B5 |
 | P21 | P2 | Undo restore never goes away, has no confirmation and switches back and forth | Fixed in B5 |
 | P22 | P2 | Clear All Data has no safety copy | Fixed in B5 |
-| P23 | P3 | Import is parsed on the main thread with no size cap | B6 |
+| P23 | P3 | Import is parsed on the main thread with no size cap | Fixed in B6 |
 | P24 | P3 | Clipboard backup isn't marked sensitive | Fixed in B5 |
-| P25 | P3 | A debt payment with no account counts as spending | B6 |
-| P26 | P3 | Unused Secrets and Roborazzi plugins | B6 |
+| P25 | P3 | A debt payment with no account counts as spending | Fixed in B6 |
+| P26 | P3 | Unused Secrets and Roborazzi plugins | Fixed in B6 |
 | U1 | UX | Adjust balance without a fake transaction | B8 |
 | U2 | UX | Archive or hide old accounts | Later (needs a schema change) |
 | U3 | UX | View past months' budgets | Later (may need a schema change) |
-| U4 | UX | Tell Jan that Share Backup will need the PIN on return | B6 (copy only) |
+| U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
 
 ## Decisions Jan owes
 Each pack uses the default below unless Jan says otherwise.

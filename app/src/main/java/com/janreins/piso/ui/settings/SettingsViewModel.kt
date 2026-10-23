@@ -7,6 +7,8 @@ import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.local.ThemeMode
 import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
+import com.janreins.piso.data.models.BackupData
+import com.janreins.piso.data.models.BackupSummary
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.BackupSafety
@@ -14,9 +16,14 @@ import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.data.repository.UndoRestoreInfo
 import com.janreins.piso.util.CsvExporter
 import com.janreins.piso.util.ExportWriter
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,6 +37,18 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+data class BackupImportState(
+    val data: BackupData? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null
+) {
+    val summary: BackupSummary? = data?.summary
+}
+
+private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
+private class BackupTooLargeException : IOException()
 
 data class SettingsUiState(
     val isLoading: Boolean = true,
@@ -47,6 +66,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val messageEvent: SharedFlow<String> = _messageEvent.asSharedFlow()
 
     private var restoreInProgress = false
+    private var reviewJob: Job? = null
+    private val _backupImportState = MutableStateFlow(BackupImportState())
+    val backupImportState: StateFlow<BackupImportState> = _backupImportState.asStateFlow()
 
     private val _canUndoRestore = MutableStateFlow(false)
     val canUndoRestore: StateFlow<Boolean> = _canUndoRestore.asStateFlow()
@@ -171,14 +193,54 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun importBackup(jsonString: String, onResult: (Boolean) -> Unit) {
+    fun reviewBackup(openStream: () -> InputStream?) {
+        reviewJob?.cancel()
+        _backupImportState.value = BackupImportState(isLoading = true)
+        reviewJob = viewModelScope.launch {
+            val preview = withContext(Dispatchers.IO) {
+                try {
+                    val data = openStream()?.use { input ->
+                        val bytes = ByteArrayOutputStream()
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            // Read one byte past the limit at most, including for providers
+                            // that report no size (or the wrong size).
+                            val count = input.read(buffer, 0, minOf(buffer.size, MAX_BACKUP_BYTES - bytes.size() + 1))
+                            if (count < 0) break
+                            if (bytes.size() + count > MAX_BACKUP_BYTES) throw BackupTooLargeException()
+                            bytes.write(buffer, 0, count)
+                        }
+                        BackupData.fromJsonString(bytes.toString(Charsets.UTF_8.name()))
+                    }
+                    if (data == null) BackupImportState(error = "This is not a valid Piso backup.")
+                    else BackupImportState(data = data)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: BackupTooLargeException) {
+                    BackupImportState(error = "Backup is too large. Choose a file of 20 MB or less.")
+                } catch (_: Exception) {
+                    BackupImportState(error = "Couldn't read this backup file. Choose a valid Piso backup.")
+                }
+            }
+            _backupImportState.value = preview
+            preview.error?.let { showMessage(it) }
+        }
+    }
+
+    fun dismissBackupPreview() {
+        reviewJob?.cancel()
+        _backupImportState.value = BackupImportState()
+    }
+
+    fun importBackup(onResult: (Boolean) -> Unit) {
         if (restoreInProgress) return
+        val data = _backupImportState.value.data ?: return
         restoreInProgress = true
         viewModelScope.launch {
             try {
                 // The restore runs in a single DB transaction, so a failure leaves existing data untouched.
                 val success = try {
-                    repository.importBackupJson(jsonString)
+                    repository.importBackup(data)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
