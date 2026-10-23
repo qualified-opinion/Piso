@@ -15,11 +15,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -30,11 +27,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -53,12 +48,12 @@ import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
+import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.ui.settings.CategoryInputDialog
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealPrimary
 import com.janreins.piso.util.CurrencyUtil
-import com.janreins.piso.util.DateUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,8 +130,6 @@ fun TransactionDialog(
 
     var showQuickAddCategoryDialog by remember { mutableStateOf(false) }
     var showQuickAddSubcategoryDialog by remember { mutableStateOf(false) }
-
-    var showDatePicker by remember { mutableStateOf(false) }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -433,20 +426,11 @@ fun TransactionDialog(
                 )
 
                 // Date picker (back-dating is common when catching up on receipts)
-                OutlinedButton(
-                    onClick = { showDatePicker = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("transaction_date_button"),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text("Date: ${DateUtil.formatDate(dateMillis)}")
-                }
+                DateField(
+                    dateMillis = dateMillis,
+                    onDateChange = { dateMillis = it },
+                    testTagPrefix = "transaction"
+                )
 
                 if (errorMessage != null) {
                     Text(
@@ -564,34 +548,5 @@ fun TransactionDialog(
                 }
             }
         )
-    }
-
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = DateUtil.toPickerUtcMillis(dateMillis)
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { picked ->
-                            dateMillis = DateUtil.fromPickerUtcMillis(picked, keepTimeOf = dateMillis)
-                        }
-                        showDatePicker = false
-                    },
-                    modifier = Modifier.testTag("transaction_date_confirm")
-                ) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
     }
 }

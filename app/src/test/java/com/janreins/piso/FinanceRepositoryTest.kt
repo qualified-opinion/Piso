@@ -26,6 +26,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.janreins.piso.util.DateUtil
+import java.time.LocalDate
+import java.time.ZoneId
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -539,5 +542,59 @@ class FinanceRepositoryTest {
         assertEquals("Other", subs.single { it.parentKind == "INCOME" }.parentCategoryName)
         txs = repository.allTransactions.first()
         assertEquals("Other", txs.single { it.type == "INCOME" }.category)
+    }
+
+    // --- Backdated goal and debt moves (P08) ---
+
+    private fun lastMonthNoon(): Long =
+        LocalDate.now().minusMonths(1).withDayOfMonth(15).atTime(12, 0)
+            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    @Test
+    fun backdatedGoalContributionKeepsItsDate() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+        val goalId = repository.insertGoal(Goal(name = "Trip", targetAmount = 5000.0, currentAmount = 0.0))
+        val lastMonth = lastMonthNoon()
+
+        repository.addMoneyToGoal(goalId, 300.0, wallet, lastMonth)
+
+        val tx = repository.allTransactions.first().single()
+        assertEquals(lastMonth, tx.dateMillis)
+        assertEquals(DateUtil.shiftMonthKey(DateUtil.getCurrentMonthKey(), -1), DateUtil.getMonthKey(tx.dateMillis))
+        assertEquals(300.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
+    }
+
+    @Test
+    fun backdatedDebtPaymentKeepsItsDate() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+        val debtId = repository.insertDebt(
+            Debt(name = "Loan", kind = "Personal", originalAmount = 800.0, remainingAmount = 800.0)
+        )
+        val lastMonth = lastMonthNoon()
+
+        repository.recordDebtPayment(debtId, 250.0, wallet, lastMonth)
+
+        val tx = repository.allTransactions.first().single()
+        assertEquals(lastMonth, tx.dateMillis)
+        assertEquals(550.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.0)
+        assertEquals(750.0, balanceOf(wallet), 0.0)
+    }
+
+    @Test
+    fun goalAndDebtMovesDefaultToNow() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+        val goalId = repository.insertGoal(Goal(name = "Trip", targetAmount = 5000.0, currentAmount = 0.0))
+        val debtId = repository.insertDebt(
+            Debt(name = "Loan", kind = "Personal", originalAmount = 800.0, remainingAmount = 800.0)
+        )
+        val before = System.currentTimeMillis()
+
+        repository.addMoneyToGoal(goalId, 100.0, wallet)
+        repository.recordDebtPayment(debtId, 100.0, wallet)
+
+        val after = System.currentTimeMillis()
+        repository.allTransactions.first().forEach { tx ->
+            assertTrue(tx.dateMillis in before..after)
+        }
     }
 }

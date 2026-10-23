@@ -353,8 +353,8 @@ fun GoalsScreen(
             goal = targetGoal,
             accounts = accounts,
             onDismiss = { goalToAddMoney = null },
-            onConfirmAdd = { amount, fromAccId ->
-                viewModel.addMoneyToGoal(targetGoal.id, amount, fromAccId)
+            onConfirmAdd = { amount, fromAccId, dateMillis ->
+                viewModel.addMoneyToGoal(targetGoal.id, amount, fromAccId, dateMillis)
                 goalToAddMoney = null
             }
         )

@@ -100,30 +100,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val currentMonthSummary = combine(transactions, currentMonthKey) { txList, currentKey ->
-        var incomeSum = 0.0
-        var spentSum = 0.0
-        var goalMovesSum = 0.0
-
-        for (tx in txList) {
-            val txMonth = DateUtil.getMonthKey(tx.dateMillis)
-            if (txMonth == currentKey) {
-                val isGoalMove = tx.goalId != null || tx.goalFlow != null
-                if (isGoalMove) {
-                    goalMovesSum += tx.amount
-                } else if (tx.type == "INCOME") {
-                    incomeSum += tx.amount
-                } else if (tx.type == "EXPENSE") {
-                    spentSum += tx.amount
-                }
-            }
-        }
-
-        MonthlySummary(
-            income = incomeSum,
-            spent = spentSum,
-            net = incomeSum - spentSum,
-            goalMoves = goalMovesSum
-        )
+        summarizeMonth(txList, currentKey)
     }
 
     private val currentMonthCategorySpending = combine(transactions, currentMonthKey) { txList, currentKey ->
@@ -231,4 +208,34 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             _messageEvent.emit(message)
         }
     }
+}
+
+/**
+ * Income, spending and goal moves for the month [monthKey], counted by each transaction's own
+ * date. Goal moves are kept out of income and spending.
+ */
+internal fun summarizeMonth(txList: List<Transaction>, monthKey: String): MonthlySummary {
+    var incomeSum = 0.0
+    var spentSum = 0.0
+    var goalMovesSum = 0.0
+
+    for (tx in txList) {
+        if (DateUtil.getMonthKey(tx.dateMillis) == monthKey) {
+            val isGoalMove = tx.goalId != null || tx.goalFlow != null
+            if (isGoalMove) {
+                goalMovesSum += tx.amount
+            } else if (tx.type == "INCOME") {
+                incomeSum += tx.amount
+            } else if (tx.type == "EXPENSE") {
+                spentSum += tx.amount
+            }
+        }
+    }
+
+    return MonthlySummary(
+        income = incomeSum,
+        spent = spentSum,
+        net = incomeSum - spentSum,
+        goalMoves = goalMovesSum
+    )
 }

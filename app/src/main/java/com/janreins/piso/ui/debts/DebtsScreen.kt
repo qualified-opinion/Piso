@@ -321,8 +321,8 @@ fun DebtsScreen(
             debt = targetDebt,
             accounts = accounts,
             onDismiss = { debtToRecordPayment = null },
-            onConfirmPayment = { amount, fromAccId ->
-                viewModel.recordDebtPayment(targetDebt.id, amount, fromAccId)
+            onConfirmPayment = { amount, fromAccId, dateMillis ->
+                viewModel.recordDebtPayment(targetDebt.id, amount, fromAccId, dateMillis)
                 debtToRecordPayment = null
             }
         )

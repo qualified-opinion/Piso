@@ -292,9 +292,9 @@ fun ActivityScreen(
                             contentPadding = 14.dp,
                             onClick = {
                                 if (tx.goalId != null || tx.goalFlow != null) {
-                                    viewModel.showMessage("Change this from the Goals tab")
+                                    viewModel.showMessage("To change this, delete it here and add it again from Goals")
                                 } else if (tx.debtId != null) {
-                                    viewModel.showMessage("Change this from the Debts section")
+                                    viewModel.showMessage("To change this, delete it here and record it again from Debts")
                                 } else {
                                     transactionToEdit = tx
                                 }

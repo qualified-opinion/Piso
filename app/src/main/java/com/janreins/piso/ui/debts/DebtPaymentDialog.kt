@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Debt
+import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,9 +40,10 @@ fun DebtPaymentDialog(
     debt: Debt,
     accounts: List<Account>,
     onDismiss: () -> Unit,
-    onConfirmPayment: (amount: Double, fromAccountId: Long?) -> Unit
+    onConfirmPayment: (amount: Double, fromAccountId: Long?, dateMillis: Long) -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
+    var dateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -127,6 +130,15 @@ fun DebtPaymentDialog(
                     }
                 }
 
+                // With no account nothing is saved to Activity, so there is no date to set
+                if (selectedAccountId != null) {
+                    DateField(
+                        dateMillis = dateMillis,
+                        onDateChange = { dateMillis = it },
+                        testTagPrefix = "debt_payment"
+                    )
+                }
+
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
@@ -150,7 +162,7 @@ fun DebtPaymentDialog(
                         errorMessage = "Payment can't be more than the ${CurrencyUtil.formatPeso(debt.remainingAmount)} still owed."
                         return@Button
                     }
-                    onConfirmPayment(parsed, selectedAccountId)
+                    onConfirmPayment(parsed, selectedAccountId, dateMillis)
                 },
                 modifier = Modifier.testTag("debt_payment_confirm_button"),
                 shape = RoundedCornerShape(10.dp)

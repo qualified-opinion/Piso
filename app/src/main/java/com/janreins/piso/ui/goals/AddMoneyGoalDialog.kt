@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Goal
+import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,9 +40,10 @@ fun AddMoneyGoalDialog(
     goal: Goal,
     accounts: List<Account>,
     onDismiss: () -> Unit,
-    onConfirmAdd: (amount: Double, fromAccountId: Long?) -> Unit
+    onConfirmAdd: (amount: Double, fromAccountId: Long?, dateMillis: Long) -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
+    var dateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     // Default to an account other than the one the goal is kept in, so the contribution is a
     // real move of money into the goal's account.
     var selectedAccountId by remember {
@@ -152,6 +155,12 @@ fun AddMoneyGoalDialog(
                     modifier = Modifier.testTag("add_money_effect_text")
                 )
 
+                DateField(
+                    dateMillis = dateMillis,
+                    onDateChange = { dateMillis = it },
+                    testTagPrefix = "add_money"
+                )
+
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
@@ -169,7 +178,7 @@ fun AddMoneyGoalDialog(
                         errorMessage = "Please enter an amount greater than 0."
                         return@Button
                     }
-                    onConfirmAdd(parsed, selectedAccountId)
+                    onConfirmAdd(parsed, selectedAccountId, dateMillis)
                 },
                 modifier = Modifier.testTag("add_money_confirm_button"),
                 shape = RoundedCornerShape(10.dp)

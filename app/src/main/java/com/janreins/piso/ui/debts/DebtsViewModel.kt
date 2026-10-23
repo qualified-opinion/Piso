@@ -77,9 +77,9 @@ class DebtsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun recordDebtPayment(debtId: Long, amount: Double, fromAccountId: Long?) {
+    fun recordDebtPayment(debtId: Long, amount: Double, fromAccountId: Long?, dateMillis: Long) {
         viewModelScope.launch {
-            repository.recordDebtPayment(debtId, amount, fromAccountId)
+            repository.recordDebtPayment(debtId, amount, fromAccountId, dateMillis)
             showMessage("Debt payment recorded")
         }
     }
