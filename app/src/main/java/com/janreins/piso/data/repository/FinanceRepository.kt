@@ -16,6 +16,7 @@ import com.janreins.piso.util.CurrencyUtil.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlin.math.max
@@ -421,8 +422,31 @@ class FinanceRepository(
         backupSafety?.latestBackup() != null
     }
 
-    suspend fun undoRestore(): Boolean = restoreBackup {
-        backupSafety?.latestBackup()?.readText(Charsets.UTF_8)?.let(BackupData::fromJsonString)
+    suspend fun undoRestoreInfo(): UndoRestoreInfo? = withContext(Dispatchers.IO) {
+        try {
+            backupSafety?.latestBackup()?.let { file ->
+                BackupData.fromJsonString(file.readText(Charsets.UTF_8))?.let {
+                    UndoRestoreInfo(file.name, it.summary)
+                }
+            }
+        } catch (_: IOException) {
+            null // A concurrent reset may have removed the copy while Settings was reading it.
+        }
+    }
+
+    suspend fun undoRestore(expectedFileName: String? = null): Boolean = withContext(Dispatchers.IO) {
+        var consumed: File? = null
+        val success = database.withTransaction {
+            val file = backupSafety?.latestBackup() ?: return@withTransaction false
+            if (expectedFileName != null && file.name != expectedFileName) return@withTransaction false
+            val data = BackupData.fromJsonString(file.readText(Charsets.UTF_8)) ?: return@withTransaction false
+            replaceBackupData(data)
+            consumed = file
+            true
+        }
+        // Never consume the only copy until the replacement transaction has committed.
+        if (success && consumed?.delete() != true) throw IOException("Cannot consume safety backup")
+        success
     }
 
     private suspend fun restoreBackup(load: () -> BackupData?): Boolean = withContext(Dispatchers.IO) {
@@ -472,18 +496,33 @@ class FinanceRepository(
         }
     }
 
-    suspend fun clearAllData() {
-        database.withTransaction {
-            accountDao.clearAccounts()
-            transactionDao.clearTransactions()
-            budgetDao.clearBudgets()
-            goalDao.clearGoals()
-            debtDao.clearDebts()
-            investmentDao.clearInvestments()
-            // Reset categories to defaults
-            categoryDao.clearCategories()
-            categoryDao.clearSubcategories()
-            seedDefaultCategoriesIfEmpty()
+    suspend fun clearAllData(keepUndo: Boolean = true): Unit = withContext(Dispatchers.IO) {
+        val safety = if (keepUndo) checkNotNull(backupSafety) { "Safety backup storage is required for clear" }
+            else backupSafety
+        var saved: File? = null
+        try {
+            database.withTransaction {
+                if (keepUndo) saved = safety!!.save(readBackupData().toJsonString(), beforeClear = true)
+                clearTables()
+            }
+        } catch (failure: Throwable) {
+            saved?.delete()
+            throw failure
         }
+        // Only discard older copies after the clear commits.
+        if (keepUndo) safety!!.deleteAll(except = saved)
+    }
+
+    private suspend fun clearTables() {
+        accountDao.clearAccounts()
+        transactionDao.clearTransactions()
+        budgetDao.clearBudgets()
+        goalDao.clearGoals()
+        debtDao.clearDebts()
+        investmentDao.clearInvestments()
+        // Reset categories to defaults
+        categoryDao.clearCategories()
+        categoryDao.clearSubcategories()
+        seedDefaultCategoriesIfEmpty()
     }
 }

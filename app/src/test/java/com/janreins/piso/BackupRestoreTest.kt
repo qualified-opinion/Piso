@@ -1,14 +1,26 @@
 package com.janreins.piso
 
+import android.app.Application
 import android.content.Context
+import androidx.lifecycle.ViewModelStore
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.janreins.piso.data.local.AppDatabase
+import com.janreins.piso.data.local.UserProfileManager
+import com.janreins.piso.ui.app.AppViewModel
+import com.janreins.piso.ui.settings.SettingsViewModel
 import com.janreins.piso.data.models.*
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import java.io.File
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -18,6 +30,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -142,14 +155,24 @@ class BackupRestoreTest {
     }
 
     @Test
-    fun keepsOnlyThreeMostRecentBackupsAndUndoAlsoSavesCurrentData() = runBlocking {
+    fun keepsOnlyThreeMostRecentBackupsAndUndoConsumesEachCopyOnce() = runBlocking {
         repeat(5) { assertTrue(repository.importBackupJson(fixture("Data $it").toJsonString())) }
         assertEquals(3, directory.listFiles()!!.size)
         assertSameData(fixture("Data 3"), BackupData.fromJsonString(safety.latestBackup()!!.readText())!!)
-        assertTrue(repository.undoRestore())
+        val confirmed = repository.undoRestoreInfo()!!
+        assertEquals("Undo restore of ${confirmed.summary.date}", confirmed.label)
+        assertTrue(confirmed.summary.confirmationText(isUndo = true).contains("1 accounts, 1 transactions"))
+        val consumed = safety.latestBackup()!!
+        onDeleteAccounts = { assertTrue(consumed.exists()) }
+        assertTrue(repository.undoRestore(confirmed.fileName))
+        onDeleteAccounts = null
+        assertFalse(consumed.exists())
         assertSameData(fixture("Data 3"), snapshot())
-        assertSameData(fixture("Data 4"), BackupData.fromJsonString(safety.latestBackup()!!.readText())!!)
-        assertEquals(3, directory.listFiles()!!.size)
+        assertSameData(fixture("Data 2"), BackupData.fromJsonString(safety.latestBackup()!!.readText())!!)
+        assertEquals(2, directory.listFiles()!!.size)
+        // Reusing the confirmation cannot consume the next older copy.
+        assertFalse(repository.undoRestore(confirmed.fileName))
+        assertSameData(fixture("Data 3"), snapshot())
     }
 
     @Test
@@ -157,10 +180,107 @@ class BackupRestoreTest {
         assertFalse(repository.undoRestore())
         assertTrue(repository.importBackupJson(fixture("Prior").toJsonString()))
         val before = snapshot()
-        safety.latestBackup()!!.writeText("corrupt")
+        val corrupt = safety.latestBackup()!!
+        corrupt.writeText("corrupt")
         assertFalse(repository.undoRestore())
         assertSameData(before, snapshot())
+        assertTrue(corrupt.exists())
+        assertEquals("corrupt", corrupt.readText())
     }
+
+    @Test
+    fun restoreUndoThenUndoAgainLeavesPreImportData() = runBlocking {
+        assertTrue(repository.importBackupJson(fixture("Prior").toJsonString()))
+        safety.deleteAll() // Initial fixture is not an import the user needs to undo.
+        assertTrue(repository.importBackupJson(fixture("Imported").toJsonString()))
+        assertTrue(repository.undoRestore())
+        assertSameData(fixture("Prior"), snapshot())
+        assertFalse(repository.hasUndoRestore())
+        assertFalse(repository.undoRestore())
+        assertSameData(fixture("Prior"), snapshot())
+    }
+
+    @Test
+    fun clearKeepsExactlyOnePreClearCopyAndUndoRestoresEveryTable() = runBlocking {
+        val prior = fixture("Prior")
+        repeat(3) { assertTrue(repository.importBackupJson(prior.toJsonString())) }
+        onDeleteAccounts = {
+            assertTrue(database.inTransaction())
+            assertSameData(prior, BackupData.fromJsonString(safety.latestBackup()!!.readText())!!)
+        }
+        repository.clearAllData()
+        onDeleteAccounts = null
+        val copy = directory.listFiles()!!.single()
+        assertTrue(copy.name.matches(Regex("pre-clear-[0-9]{19}\\.json")))
+        assertTrue(repository.undoRestoreInfo()!!.label.startsWith("Undo clear of "))
+        val empty = snapshot()
+        assertTrue(listOf(empty.accounts, empty.transactions, empty.budgets, empty.goals,
+            empty.debts, empty.investments).all { it.isEmpty() })
+        assertTrue(repository.undoRestore())
+        assertSameData(prior, snapshot())
+        assertFalse(repository.hasUndoRestore())
+    }
+
+    @Test
+    fun mixedCopyPrefixesShareChronologicalOrderingAndKeepThree() {
+        val copies = (0..4).map {
+            safety.save(fixture("Data $it").toJsonString(), beforeClear = it % 2 == 0)
+        }
+        assertEquals(copies.last(), safety.latestBackup())
+        safety.prune()
+        assertEquals(copies.takeLast(3).toSet(), directory.listFiles()!!.toSet())
+    }
+
+    @Test
+    fun failedUndoRollsBackAndKeepsTheCopy() = runBlocking {
+        assertTrue(repository.importBackupJson(fixture("Prior").toJsonString()))
+        assertTrue(repository.importBackupJson(fixture("Imported").toJsonString()))
+        val before = snapshot()
+        val copy = safety.latestBackup()!!
+        database.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER fail_undo BEFORE INSERT ON transactions BEGIN SELECT RAISE(ABORT, 'test failure'); END"
+        )
+        assertNotNull(runCatching { repository.undoRestore() }.exceptionOrNull())
+        assertSameData(before, snapshot())
+        assertEquals(copy, safety.latestBackup())
+        assertTrue(copy.exists())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun appResetDeletesAllCopiesAndPendingFilesAndClearsSettingsUndo() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val appSafety = BackupSafety(File(application.filesDir, "backups"))
+        val appRepository = FinanceRepository(database, appSafety)
+        val previous: AppDatabase? = ReflectionHelpers.getStaticField(AppDatabase::class.java, "INSTANCE")
+        val store = ViewModelStore()
+        val profile = UserProfileManager.getInstance(application)
+        try {
+            ReflectionHelpers.setStaticField(AppDatabase::class.java, "INSTANCE", database)
+            profile.createProfile("Juan", null)
+            appSafety.deleteAll()
+            val app = AppViewModel(application).also { store.put("app", it) }
+            assertTrue(appRepository.importBackupJson(fixture("Prior").toJsonString()))
+            appRepository.clearAllData()
+            assertTrue(appRepository.importBackupJson(fixture("Imported").toJsonString()))
+            File(application.filesDir, "backups/pending-leftover.tmp").writeText("partial ledger")
+            val settings = SettingsViewModel(application).also { store.put("settings", it) }
+            settings.canUndoRestore.first { it }
+            app.clearAllDataAndReset()
+            settings.canUndoRestore.first { !it }
+            assertFalse(appRepository.hasUndoRestore())
+            assertTrue(File(application.filesDir, "backups").listFiles()!!.isEmpty())
+            assertTrue(BackupData.fromJsonString(appRepository.exportBackupJson())!!.accounts.isEmpty())
+        } finally {
+            store.clear()
+            profile.clearProfile()
+            appSafety.deleteAll()
+            ReflectionHelpers.setStaticField(AppDatabase::class.java, "INSTANCE", previous)
+            Dispatchers.resetMain()
+        }
+    }
+
     @Test
     fun emptyBackupReplacesCategoriesAndUndoRestoresThem() = runBlocking {
         val prior = fixture("Prior")

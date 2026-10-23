@@ -7,9 +7,12 @@ import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.local.ThemeMode
 import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
+import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.state.MainTab
 import com.janreins.piso.ui.state.MoreSubScreen
+import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -17,15 +20,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val backupSafety = BackupSafety(File(application.filesDir, "backups"))
     private val repository: FinanceRepository
     private val profileManager = UserProfileManager.getInstance(application)
 
     init {
         val db = AppDatabase.getDatabase(application)
-        repository = FinanceRepository(db)
+        repository = FinanceRepository(db, backupSafety)
         viewModelScope.launch {
             repository.seedDefaultCategoriesIfEmpty()
         }
@@ -109,7 +114,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAllDataAndReset() {
         viewModelScope.launch {
-            repository.clearAllData()
+            repository.clearAllData(keepUndo = false)
+            withContext(Dispatchers.IO) { backupSafety.deleteAll() }
             profileManager.clearProfile()
             _currentTab.value = MainTab.HOME
             _moreSubScreen.value = null

@@ -1,10 +1,13 @@
 package com.janreins.piso.ui.settings
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.PersistableBundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -74,6 +77,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.piso.data.local.ThemeMode
 import com.janreins.piso.data.local.isWeakPin
 import com.janreins.piso.data.models.BackupData
+import com.janreins.piso.data.repository.UndoRestoreInfo
 import com.janreins.piso.ui.components.ConfirmDialog
 import com.janreins.piso.ui.components.PinDots
 import com.janreins.piso.ui.components.PinKeypad
@@ -98,7 +102,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val userProfile = uiState.userProfile
-    val canUndoRestore by viewModel.canUndoRestore.collectAsStateWithLifecycle()
+    val undoRestoreInfo by viewModel.undoRestoreInfo.collectAsStateWithLifecycle()
 
     // Dialog States
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -110,6 +114,7 @@ fun SettingsScreen(
     var showExportTextDialog by remember { mutableStateOf<String?>(null) }
     var showImportTextDialog by remember { mutableStateOf(false) }
 
+    var pendingUndo by remember { mutableStateOf<UndoRestoreInfo?>(null) }
     var pendingFileImportJson by remember { mutableStateOf<String?>(null) }
 
     // System File Pickers
@@ -583,12 +588,12 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    if (canUndoRestore) {
+                    undoRestoreInfo?.let { info ->
                         OutlinedButton(
-                            onClick = { viewModel.undoRestore() },
+                            onClick = { pendingUndo = info },
                             modifier = Modifier.fillMaxWidth().testTag("undo_restore_button")
                         ) {
-                            Text("Undo restore")
+                            Text(info.label)
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                     }
@@ -1214,11 +1219,25 @@ fun SettingsScreen(
         )
     }
 
+    pendingUndo?.let { info ->
+        ConfirmDialog(
+            title = info.label,
+            message = info.summary.confirmationText(isUndo = true),
+            confirmText = "Undo",
+            isDestructive = true,
+            onConfirm = {
+                pendingUndo = null
+                viewModel.undoRestore(info)
+            },
+            onDismiss = { pendingUndo = null }
+        )
+    }
+
     // 6. Clear All Data Confirm Dialog
     if (showClearConfirmDialog) {
         ConfirmDialog(
             title = "Clear All Data?",
-            message = "This deletes accounts and money records. Your name, PIN, and theme stay.",
+            message = "This deletes accounts and money records. Your name, PIN, and theme stay. You can undo this once from Settings.",
             confirmText = "Clear Everything",
             isDestructive = true,
             onConfirm = {
@@ -1269,6 +1288,11 @@ fun SettingsScreen(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         val clip = ClipData.newPlainText("Piso Backup", jsonString)
+                        clip.description.extras = PersistableBundle().apply {
+                            val sensitiveKey = if (Build.VERSION.SDK_INT >= 33) ClipDescription.EXTRA_IS_SENSITIVE
+                                else "android.content.extra.IS_SENSITIVE"
+                            putBoolean(sensitiveKey, true)
+                        }
                         clipboard.setPrimaryClip(clip)
                         viewModel.showMessage("Backup copied to clipboard")
                         showExportTextDialog = null
