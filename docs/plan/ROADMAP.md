@@ -7,7 +7,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 
 ## In plain words
 - **Done:** six batches of fixes are merged. Money totals are right, backups and restores are safe, the PIN lock holds, safety copies are cleaned up properly, and a set of small fixes is in (B1 to B6).
-- **Next:** B7 lets Jan record goal and debt moves on a past date. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense. Both packs are written and wait only on Jan's go.
+- **Next:** B7, which lets Jan record goal and debt moves on a past date, is built and in review. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense. Its pack is written and waits only on Jan's go.
 - **Waiting on Jan:** B9 (lock-screen RESET) needs decision D1 below. B10 (archive old accounts, view past budgets) needs decision D4.
 - **Not released:** v1.0.3 doesn't have B5 or B6 yet. Jan can ask for a signed APK whenever he wants them on his phone.
 
@@ -23,7 +23,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | Docs | `docs/piso-roadmap` | This folder, plus `AGENTS.md` and `CLAUDE.md` | Merged, PR #9, `a0c60b7` | none |
 | B5 | `fix/piso-b5-safety-copies` | P20, P21, P22, P24 safety-copy hygiene | Merged, PR #10, `622df4f` | [batch5](handoffs/batch5-safety-copies.md) |
 | B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26, U4, B5 leftover copy cleanup | Merged, PR #11, `3d4ce09` | [batch6](handoffs/batch6-small-fixes.md) |
-| B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves | Pack ready, waiting on Jan's go | [batch7](handoffs/batch7-backdate.md) |
+| B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | In review | [batch7](handoffs/batch7-backdate.md) |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Pack ready, waiting on Jan's go (after B7) | [batch8](handoffs/batch8-goal-out-adjust.md) |
 | B9 | `fix/piso-b9-lock-policy` | P13, depending on Jan's decision (P12 optional) | Needs decision D1 | none |
 | B10 | `feat/piso-b10-schema` | U2 account archive, U3 past-month budgets (database version 4) | Needs decision D4 | none |
@@ -42,7 +42,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | P05 | P2 | Real schemas and migration tests | Fixed in B3 |
 | P06 | P2 | BOM fix and lint in CI | Fixed in B3 |
 | P07 | P2 | Monotonic PIN lockout | Fixed in B4 (the `apply()` gap is hardening only) |
-| P08 | P2 | Backdate goal and debt moves | B7, pack ready |
+| P08 | P2 | Backdate goal and debt moves | Fixed in B7 |
 | P09 | P2 | Take money out of a goal | B8, pack ready |
 | P10 | P3 | Goal completion updated by id | Fixed in B1 |
 | P11 | P3 | Rate-limit every PIN check | Fixed in B4 |
@@ -65,7 +65,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | U2 | UX | Archive or hide old accounts | B10, decision D4 |
 | U3 | UX | View past months' budgets | B10, decision D4 |
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
-| U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | B7 (copy only) |
+| U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
 ## Decisions Jan owes
 Each pack uses the default below unless Jan says otherwise.
@@ -97,6 +97,7 @@ P12 PBKDF2 for the PIN hash (optional in B9). U2 and U3 moved to B10.
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B7 (once released): add money to a goal dated last month and see it under last month in Activity; record a debt payment dated last month and see this month's Spent unchanged; tap a goal move in Activity and read the new message.
 - After B6 (once released): edit a past month's budget and see it stay in that month; save a ₱0 investment; make a no-account debt payment and see Spent unchanged; pick a large non-backup file to import and see an error, not a freeze; read the Share Backup PIN note.
 
 ## First message for an agent starting alone

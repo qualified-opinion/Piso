@@ -307,9 +307,16 @@ class FinanceRepository(
      *  - Otherwise (no linked account, the same account, or no source) the money stays where it
      *    is and is only set aside for the goal.
      *
+     * [dateMillis] is when the contribution happened, so a late entry counts in the right month.
+     *
      * Returns true when the goal is reached.
      */
-    suspend fun addMoneyToGoal(goalId: Long, amount: Double, fromAccountId: Long?): Boolean {
+    suspend fun addMoneyToGoal(
+        goalId: Long,
+        amount: Double,
+        fromAccountId: Long?,
+        dateMillis: Long = System.currentTimeMillis()
+    ): Boolean {
         return database.withTransaction {
             val goal = goalDao.getGoalById(goalId) ?: return@withTransaction false
             val source = fromAccountId?.takeIf { accountDao.getAccountById(it) != null }
@@ -317,7 +324,7 @@ class FinanceRepository(
             val destination = if (source != null && goalAccount != null && goalAccount != source) goalAccount else source
 
             val tx = Transaction(
-                dateMillis = System.currentTimeMillis(),
+                dateMillis = dateMillis,
                 type = "TRANSFER",
                 category = "Savings",
                 subcategory = "",
@@ -352,7 +359,17 @@ class FinanceRepository(
         remainingAmount = roundCents(debt.remainingAmount)
     )
 
-    suspend fun recordDebtPayment(debtId: Long, amount: Double, fromAccountId: Long?) {
+    /**
+     * Records a payment of [amount] on a debt. [dateMillis] is when it was paid, so a late entry
+     * counts in the right month. With no [fromAccountId] only the debt goes down and no
+     * transaction is saved, so the date isn't used.
+     */
+    suspend fun recordDebtPayment(
+        debtId: Long,
+        amount: Double,
+        fromAccountId: Long?,
+        dateMillis: Long = System.currentTimeMillis()
+    ) {
         database.withTransaction {
             val debt = debtDao.getDebtById(debtId) ?: return@withTransaction
             // Never record more than is owed, so the transaction amount is exactly what the
@@ -364,7 +381,7 @@ class FinanceRepository(
                 return@withTransaction
             }
             val tx = Transaction(
-                dateMillis = System.currentTimeMillis(),
+                dateMillis = dateMillis,
                 type = "EXPENSE",
                 category = "Debt",
                 subcategory = "",

@@ -83,9 +83,9 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addMoneyToGoal(goalId: Long, amount: Double, fromAccountId: Long?) {
+    fun addMoneyToGoal(goalId: Long, amount: Double, fromAccountId: Long?, dateMillis: Long) {
         viewModelScope.launch {
-            val completed = repository.addMoneyToGoal(goalId, amount, fromAccountId)
+            val completed = repository.addMoneyToGoal(goalId, amount, fromAccountId, dateMillis)
             if (completed) {
                 showMessage("Nice work – goal reached!")
             } else {
