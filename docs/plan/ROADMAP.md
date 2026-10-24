@@ -9,7 +9,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Done:** the first six batches of fixes are merged. Money totals are right, backups and restores are safe, the PIN lock holds, safety copies are cleaned up properly, and a set of small fixes is in (B1 to B6).
 - **Done since:** B7 lets Jan record goal and debt moves on a past date. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense.
 - **Also done:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
-- **In progress:** B10a lets Jan look back at past months' budgets, and B10b lets him archive old accounts (database version 4). Both are in review; merge B10a first.
+- **Also done:** B10a lets Jan look back at past months' budgets (PR #16).
+- **In progress:** B10b lets Jan archive old accounts (database version 4). It is in review.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet. Jan plans one APK after B10b.
 
 ## Status table
@@ -27,8 +28,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | Merged, PR #13, `cdb20cd` | [batch7](handoffs/batch7-backdate.md) |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Merged, PR #14, `af59866` | [batch8](handoffs/batch8-goal-out-adjust.md) |
 | B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | Merged, PR #15, `14f81c4` | [batch9](handoffs/batch9-lock-reset.md) |
-| B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | In review | [batch10](handoffs/batch10-budgets-archive.md) |
-| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | In review (merge after B10a) | [batch10](handoffs/batch10-budgets-archive.md) |
+| B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | Merged, PR #16, `bf8dac7` | [batch10](handoffs/batch10-budgets-archive.md) |
+| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | In review | [batch10](handoffs/batch10-budgets-archive.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
