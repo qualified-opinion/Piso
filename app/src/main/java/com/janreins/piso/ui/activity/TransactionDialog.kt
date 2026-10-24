@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.janreins.piso.data.models.Account
+import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
@@ -116,11 +117,16 @@ fun TransactionDialog(
         mutableLongStateOf(initialTransaction?.dateMillis ?: System.currentTimeMillis())
     }
 
+    // Archived accounts stay hidden from the pickers, except ones an edited transaction already uses.
+    val pickerAccounts = remember(accounts) {
+        accounts.forPicker(initialTransaction?.accountId, initialTransaction?.transferToId)
+    }
+
     var selectedAccountId by remember {
-        mutableStateOf(initialTransaction?.accountId ?: accounts.firstOrNull()?.id)
+        mutableStateOf(initialTransaction?.accountId ?: pickerAccounts.firstOrNull()?.id)
     }
     var transferToAccountId by remember {
-        mutableStateOf(initialTransaction?.transferToId ?: accounts.getOrNull(1)?.id ?: accounts.firstOrNull()?.id)
+        mutableStateOf(initialTransaction?.transferToId ?: pickerAccounts.getOrNull(1)?.id ?: pickerAccounts.firstOrNull()?.id)
     }
 
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
@@ -339,8 +345,8 @@ fun TransactionDialog(
                 }
 
                 // Account Selection
-                if (accounts.isNotEmpty()) {
-                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: "Select Account"
+                if (pickerAccounts.isNotEmpty()) {
+                    val currentAccountName = pickerAccounts.find { it.id == selectedAccountId }?.name ?: "Select Account"
                     ExposedDropdownMenuBox(
                         expanded = accountDropdownExpanded,
                         onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
@@ -362,7 +368,7 @@ fun TransactionDialog(
                             expanded = accountDropdownExpanded,
                             onDismissRequest = { accountDropdownExpanded = false }
                         ) {
-                            accounts.forEach { acc ->
+                            pickerAccounts.forEach { acc ->
                                 DropdownMenuItem(
                                     text = { Text("${acc.name} (${CurrencyUtil.formatPeso(acc.balance)})") },
                                     onClick = {
@@ -376,7 +382,7 @@ fun TransactionDialog(
 
                     // Transfer To Account (Only for TRANSFER)
                     if (type == "TRANSFER") {
-                        val toAccountName = accounts.find { it.id == transferToAccountId }?.name ?: "Select Destination"
+                        val toAccountName = pickerAccounts.find { it.id == transferToAccountId }?.name ?: "Select Destination"
                         ExposedDropdownMenuBox(
                             expanded = transferToDropdownExpanded,
                             onExpandedChange = { transferToDropdownExpanded = !transferToDropdownExpanded },
@@ -398,7 +404,7 @@ fun TransactionDialog(
                                 expanded = transferToDropdownExpanded,
                                 onDismissRequest = { transferToDropdownExpanded = false }
                             ) {
-                                accounts.forEach { acc ->
+                                pickerAccounts.forEach { acc ->
                                     DropdownMenuItem(
                                         text = { Text("${acc.name} (${CurrencyUtil.formatPeso(acc.balance)})") },
                                         onClick = {
@@ -449,12 +455,12 @@ fun TransactionDialog(
                         errorMessage = "Please enter an amount greater than 0."
                         return@Button
                     }
-                    if (accounts.isNotEmpty() && selectedAccountId == null) {
+                    if (pickerAccounts.isNotEmpty() && selectedAccountId == null) {
                         errorMessage = "Please select an account."
                         return@Button
                     }
                     if (type == "TRANSFER") {
-                        if (accounts.size < 2) {
+                        if (pickerAccounts.size < 2) {
                             errorMessage = "Add at least two accounts to record a transfer."
                             return@Button
                         }

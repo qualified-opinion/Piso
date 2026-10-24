@@ -44,7 +44,8 @@ fun AccountDialog(
     initialAccount: Account? = null,
     onDismiss: () -> Unit,
     onSave: (Account) -> Unit,
-    onAdjustBalance: (() -> Unit)? = null
+    onAdjustBalance: (() -> Unit)? = null,
+    onToggleArchived: (() -> Unit)? = null
 ) {
     var name by remember { mutableStateOf(initialAccount?.name ?: "") }
     var kind by remember { mutableStateOf(initialAccount?.kind ?: Categories.ACCOUNT_KINDS.first()) }
@@ -183,6 +184,35 @@ fun AccountDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                if (initialAccount != null && onToggleArchived != null) {
+                    if (initialAccount.isArchived) {
+                        Text(
+                            text = "This account is archived. Unarchive it to pick it again for new records.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(
+                            onClick = onToggleArchived,
+                            modifier = Modifier.testTag("account_unarchive_button")
+                        ) {
+                            Text("Unarchive account")
+                        }
+                    } else {
+                        Text(
+                            text = archiveExplanation(initialAccount.balance),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("account_archive_explanation")
+                        )
+                        TextButton(
+                            onClick = onToggleArchived,
+                            modifier = Modifier.testTag("account_archive_button")
+                        ) {
+                            Text("Archive account")
+                        }
+                    }
+                }
+
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
@@ -233,4 +263,12 @@ fun AccountDialog(
             }
         }
     )
+}
+
+/** What archiving does, with a nudge to clear a balance the user no longer has. */
+internal fun archiveExplanation(balance: Double): String {
+    val base = "Archiving hides this account from the account pickers and the main list. " +
+        "Nothing is deleted, its history stays in Activity, and its balance still counts in net worth."
+    return if (balance == 0.0) base
+    else "$base It still holds ${CurrencyUtil.formatPeso(balance)}, so move or adjust that balance first if the money is gone."
 }

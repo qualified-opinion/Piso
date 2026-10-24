@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
+import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
@@ -44,7 +45,8 @@ fun DebtPaymentDialog(
 ) {
     var amountText by remember { mutableStateOf("") }
     var dateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id) }
+    val pickerAccounts = remember(accounts) { accounts.forPicker() }
+    var selectedAccountId by remember { mutableStateOf(pickerAccounts.firstOrNull()?.id) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -87,8 +89,8 @@ fun DebtPaymentDialog(
                 )
 
                 // Paid From Account
-                if (accounts.isNotEmpty()) {
-                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: "No account (only lower what I owe)"
+                if (pickerAccounts.isNotEmpty()) {
+                    val currentAccountName = pickerAccounts.find { it.id == selectedAccountId }?.name ?: "No account (only lower what I owe)"
                     ExposedDropdownMenuBox(
                         expanded = accountDropdownExpanded,
                         onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
@@ -117,7 +119,7 @@ fun DebtPaymentDialog(
                                     accountDropdownExpanded = false
                                 }
                             )
-                            accounts.forEach { acc ->
+                            pickerAccounts.forEach { acc ->
                                 DropdownMenuItem(
                                     text = { Text("${acc.name} (${CurrencyUtil.formatPeso(acc.balance)})") },
                                     onClick = {

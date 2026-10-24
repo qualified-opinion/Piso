@@ -10,6 +10,7 @@ import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Goal
+import com.janreins.piso.data.models.Investment
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.state.CategorySpendingBreakdown
@@ -87,16 +88,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         investments,
         debts
     ) { accList, invList, debtList ->
-        val accTotal = accList.sumOf { it.balance }
-        val invTotal = invList.sumOf { it.currentValue }
-        val debtTotal = debtList.sumOf { it.remainingAmount }
-        val totalNetWorth = accTotal + invTotal - debtTotal
-        NetWorthSummary(
-            netWorth = totalNetWorth,
-            accountsTotal = accTotal,
-            investmentsTotal = invTotal,
-            debtsTotal = debtTotal
-        )
+        summarizeNetWorth(accList, invList, debtList)
     }
 
     private val currentMonthSummary = combine(transactions, currentMonthKey) { txList, currentKey ->
@@ -238,5 +230,22 @@ internal fun summarizeMonth(txList: List<Transaction>, monthKey: String): Monthl
         spent = spentSum,
         net = incomeSum - spentSum,
         goalMoves = goalMovesSum
+    )
+}
+
+/** Net worth from every account, archived or not, so archiving an account never changes it. */
+internal fun summarizeNetWorth(
+    accounts: List<Account>,
+    investments: List<Investment>,
+    debts: List<Debt>
+): NetWorthSummary {
+    val accTotal = accounts.sumOf { it.balance }
+    val invTotal = investments.sumOf { it.currentValue }
+    val debtTotal = debts.sumOf { it.remainingAmount }
+    return NetWorthSummary(
+        netWorth = accTotal + invTotal - debtTotal,
+        accountsTotal = accTotal,
+        investmentsTotal = invTotal,
+        debtsTotal = debtTotal
     )
 }

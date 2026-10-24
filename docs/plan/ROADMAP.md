@@ -9,7 +9,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Done:** the first six batches of fixes are merged. Money totals are right, backups and restores are safe, the PIN lock holds, safety copies are cleaned up properly, and a set of small fixes is in (B1 to B6).
 - **Done since:** B7 lets Jan record goal and debt moves on a past date. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense.
 - **Also done:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
-- **In progress:** B10a lets Jan look back at past months' budgets (in review). B10b, archiving old accounts, comes next and is the only batch that changes the database.
+- **Also done:** B10a lets Jan look back at past months' budgets (PR #16).
+- **In progress:** B10b lets Jan archive old accounts (database version 4). It is in review.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet. Jan plans one APK after B10b.
 
 ## Status table
@@ -27,8 +28,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | Merged, PR #13, `cdb20cd` | [batch7](handoffs/batch7-backdate.md) |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Merged, PR #14, `af59866` | [batch8](handoffs/batch8-goal-out-adjust.md) |
 | B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | Merged, PR #15, `14f81c4` | [batch9](handoffs/batch9-lock-reset.md) |
-| B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | In review | [batch10](handoffs/batch10-budgets-archive.md) |
-| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | Pack ready, after B10a | [batch10](handoffs/batch10-budgets-archive.md) |
+| B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | Merged, PR #16, `bf8dac7` | [batch10](handoffs/batch10-budgets-archive.md) |
+| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | In review | [batch10](handoffs/batch10-budgets-archive.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -64,7 +65,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | P25 | P3 | A debt payment with no account counts as spending | Fixed in B6 |
 | P26 | P3 | Unused Secrets and Roborazzi plugins | Fixed in B6 |
 | U1 | UX | Adjust balance without a fake transaction | Fixed in B8 |
-| U2 | UX | Archive or hide old accounts | B10b |
+| U2 | UX | Archive or hide old accounts | Fixed in B10b (database version 4) |
 | U3 | UX | View past months' budgets | Fixed in B10a (no schema change needed) |
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
@@ -96,6 +97,7 @@ P12 PBKDF2 for the PIN hash.
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
 - After B10a (once released): go back to last month in Budgets and see last month's budgets and spending; the forward arrow is disabled on this month.
+- After B10b (once released): archive an old e-wallet and see it gone from the add-transaction picker, net worth unchanged, and its history still in Activity; unarchive it again from the Archived section.
 - After B9 (once released): lock Piso and see no reset button; enter 10 wrong PINs and see it appear; unlock with the right PIN, lock again, and see the button gone.
 - After B8 (once released): take money out of a goal into another account and see both balances move; adjust a wallet up and down and see Spent unchanged; export CSV and see the adjustment's sign.
 - After B7 (once released): add money to a goal dated last month and see it under last month in Activity; record a debt payment dated last month and see this month's Spent unchanged; tap a goal move in Activity and read the new message.

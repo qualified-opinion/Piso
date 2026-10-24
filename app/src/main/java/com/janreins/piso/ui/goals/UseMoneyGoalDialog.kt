@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
+import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.data.models.Goal
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
@@ -49,6 +50,8 @@ fun UseMoneyGoalDialog(
     var amountText by remember { mutableStateOf("") }
     var dateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val goalAccount = accounts.find { it.id == goal.accountId }
+    // The goal's own account is kept even if archived, since that is where the money comes from.
+    val pickerAccounts = remember(accounts) { accounts.forPicker(goal.accountId) }
     var selectedAccountId by remember { mutableStateOf(goalAccount?.id) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -90,8 +93,8 @@ fun UseMoneyGoalDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                if (goalAccount != null && accounts.size > 1) {
-                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: goalAccount.name
+                if (goalAccount != null && pickerAccounts.size > 1) {
+                    val currentAccountName = pickerAccounts.find { it.id == selectedAccountId }?.name ?: goalAccount.name
                     ExposedDropdownMenuBox(
                         expanded = accountDropdownExpanded,
                         onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
@@ -113,7 +116,7 @@ fun UseMoneyGoalDialog(
                             expanded = accountDropdownExpanded,
                             onDismissRequest = { accountDropdownExpanded = false }
                         ) {
-                            accounts.forEach { acc ->
+                            pickerAccounts.forEach { acc ->
                                 DropdownMenuItem(
                                     text = { Text("${acc.name} (${CurrencyUtil.formatPeso(acc.balance)})") },
                                     onClick = {
@@ -127,7 +130,7 @@ fun UseMoneyGoalDialog(
                 }
 
                 // Explain what happens to account balances
-                val destination = accounts.find { it.id == selectedAccountId }
+                val destination = pickerAccounts.find { it.id == selectedAccountId }
                 Text(
                     text = when {
                         goalAccount != null && destination != null && destination.id != goalAccount.id ->

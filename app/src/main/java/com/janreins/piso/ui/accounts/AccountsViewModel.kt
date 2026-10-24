@@ -67,6 +67,13 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setArchived(account: Account, archived: Boolean) {
+        viewModelScope.launch {
+            repository.setAccountArchived(account.id, archived)
+            showMessage(if (archived) "${account.name} archived" else "${account.name} unarchived")
+        }
+    }
+
     fun deleteAccount(account: Account) {
         viewModelScope.launch {
             val hasTx = repository.hasTransactionsForAccount(account.id)

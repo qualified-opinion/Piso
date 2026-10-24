@@ -75,6 +75,15 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 }
 
 /**
+ * Lets an old account be archived. Existing accounts start unarchived and keep their balances.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `accounts` ADD COLUMN `isArchived` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
  * Main Room Database for Piso personal money book.
  */
 @Database(
@@ -88,7 +97,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         UserCategory::class,
         UserSubcategory::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -112,7 +121,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "piso_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }
