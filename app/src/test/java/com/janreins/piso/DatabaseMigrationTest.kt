@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.local.MIGRATION_1_2
 import com.janreins.piso.data.local.MIGRATION_2_3
+import com.janreins.piso.data.local.MIGRATION_3_4
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.After
@@ -46,7 +47,7 @@ class DatabaseMigrationTest {
         // from JVM test resources as a test-only asset archive for MigrationTestHelper.
         val schemaAssets = temporaryFolder.newFile("schemas.zip")
         ZipOutputStream(schemaAssets.outputStream()).use { zip ->
-            for (version in 1..3) {
+            for (version in 1..4) {
                 val path = "${AppDatabase::class.java.name}/$version.json"
                 zip.putNextEntry(ZipEntry("assets/$path"))
                 checkNotNull(javaClass.classLoader!!.getResourceAsStream(path)) {
@@ -107,10 +108,38 @@ class DatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun migrate3To4_keepsAccountsAndBalancesAndLeavesThemUnarchived() {
+        helper.createDatabase(dbName, 3).use { db -> insertFinancialData(db, 3) }
+
+        helper.runMigrationsAndValidate(dbName, 4, true, MIGRATION_3_4).use { db ->
+            assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
+            val columns = "id, name, kind, balance, notes, isArchived"
+            assertRow(db, "SELECT $columns FROM accounts WHERE id = 1", 1L, "Wallet", "Cash", 1234.5, "Cash notes", 0L)
+            assertRow(db, "SELECT $columns FROM accounts WHERE id = 2", 2L, "Savings", "Bank", 500.0, "", 0L)
+            assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
+            assertRow(db, "SELECT accountId, transferToId FROM transactions WHERE id = 1", 1L, 2L)
+            // The new column also accepts an archived account.
+            db.execSQL("UPDATE accounts SET isArchived = 1 WHERE id = 2")
+            assertRow(db, "SELECT isArchived FROM accounts WHERE id = 2", 1L)
+        }
+    }
+
+    @Test
+    fun migrate1To4_preservesFinancialDataAcrossAllMigrations() {
+        helper.createDatabase(dbName, 1).use { insertFinancialData(it, 1) }
+
+        helper.runMigrationsAndValidate(dbName, 4, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).use { db ->
+            assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
+            assertRow(db, "SELECT name, balance, isArchived FROM accounts WHERE id = 1", "Wallet", 1234.5, 0L)
+            assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
+        }
+    }
+
     private fun insertFinancialData(db: SupportSQLiteDatabase, version: Int) {
-        val subcategoryColumn = if (version == 2) ", subcategory" else ""
-        val subcategoryValue = if (version == 2) ", 'Groceries'" else ""
-        val emptySubcategoryValue = if (version == 2) ", ''" else ""
+        val subcategoryColumn = if (version >= 2) ", subcategory" else ""
+        val subcategoryValue = if (version >= 2) ", 'Groceries'" else ""
+        val emptySubcategoryValue = if (version >= 2) ", ''" else ""
         db.execSQL("INSERT INTO accounts VALUES (1, 'Wallet', 'Cash', 1234.5, 'Cash notes')")
         db.execSQL("INSERT INTO accounts VALUES (2, 'Savings', 'Bank', 500.0, '')")
         db.execSQL("INSERT INTO budgets VALUES (1, 'Food', 750.0, '2026-09')")

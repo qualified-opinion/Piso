@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
+import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.data.models.Goal
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
@@ -44,14 +45,15 @@ fun AddMoneyGoalDialog(
 ) {
     var amountText by remember { mutableStateOf("") }
     var dateMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val goalAccount = accounts.find { it.id == goal.accountId }
+    val pickerAccounts = remember(accounts) { accounts.forPicker() }
     // Default to an account other than the one the goal is kept in, so the contribution is a
     // real move of money into the goal's account.
     var selectedAccountId by remember {
         mutableStateOf(
-            accounts.firstOrNull { it.id != goal.accountId }?.id ?: accounts.firstOrNull()?.id
+            pickerAccounts.firstOrNull { it.id != goal.accountId }?.id ?: pickerAccounts.firstOrNull()?.id
         )
     }
-    val goalAccount = accounts.find { it.id == goal.accountId }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -96,8 +98,8 @@ fun AddMoneyGoalDialog(
                 )
 
                 // Source Account
-                if (accounts.isNotEmpty()) {
-                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: "None (just update goal progress)"
+                if (pickerAccounts.isNotEmpty()) {
+                    val currentAccountName = pickerAccounts.find { it.id == selectedAccountId }?.name ?: "None (just update goal progress)"
                     ExposedDropdownMenuBox(
                         expanded = accountDropdownExpanded,
                         onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
@@ -126,7 +128,7 @@ fun AddMoneyGoalDialog(
                                     accountDropdownExpanded = false
                                 }
                             )
-                            accounts.forEach { acc ->
+                            pickerAccounts.forEach { acc ->
                                 DropdownMenuItem(
                                     text = { Text("${acc.name} (${CurrencyUtil.formatPeso(acc.balance)})") },
                                     onClick = {
@@ -140,7 +142,7 @@ fun AddMoneyGoalDialog(
                 }
 
                 // Explain what happens to account balances
-                val sourceAccount = accounts.find { it.id == selectedAccountId }
+                val sourceAccount = pickerAccounts.find { it.id == selectedAccountId }
                 Text(
                     text = when {
                         sourceAccount != null && goalAccount != null && sourceAccount.id != goalAccount.id ->

@@ -1,6 +1,7 @@
 package com.janreins.piso.ui.accounts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Savings
@@ -30,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,15 +66,19 @@ fun AccountsScreen(
 
     val accounts = uiState.accounts
     val transactions = uiState.transactions
+    // Archived accounts still count in the total, so archiving never changes it.
     val totalBalance = remember(accounts) { accounts.sumOf { it.balance } }
+    val activeAccounts = remember(accounts) { accounts.filter { !it.isArchived } }
+    val archivedAccounts = remember(accounts) { accounts.filter { it.isArchived } }
+    var showArchived by remember { mutableStateOf(false) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var accountToEdit by remember { mutableStateOf<Account?>(null) }
     var accountToDelete by remember { mutableStateOf<Account?>(null) }
     var accountToAdjust by remember { mutableStateOf<Account?>(null) }
 
-    val groupedAccounts = remember(accounts) {
-        accounts.groupBy { it.kind }
+    val groupedAccounts = remember(activeAccounts) {
+        activeAccounts.groupBy { it.kind }
     }
 
     Scaffold(
@@ -131,7 +139,8 @@ fun AccountsScreen(
                         )
                     )
                     Text(
-                        text = "${accounts.size} account${if (accounts.size == 1) "" else "s"} tracked",
+                        text = "${activeAccounts.size} account${if (activeAccounts.size == 1) "" else "s"} tracked" +
+                            if (archivedAccounts.isEmpty()) "" else " · ${archivedAccounts.size} archived, still counted",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
                     )
@@ -242,6 +251,63 @@ fun AccountsScreen(
                             }
                         }
                     }
+                    if (archivedAccounts.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showArchived = !showArchived }
+                                    .padding(top = 8.dp, bottom = 4.dp)
+                                    .testTag("accounts_archived_toggle"),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Archived (${archivedAccounts.size})",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = if (showArchived) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = if (showArchived) "Hide archived accounts" else "Show archived accounts",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (showArchived) {
+                            items(archivedAccounts, key = { it.id }) { account ->
+                                PisoCard(
+                                    contentPadding = 16.dp,
+                                    onClick = { accountToEdit = account }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = account.name,
+                                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = "${account.kind} · ${CurrencyUtil.formatPeso(account.balance)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = { viewModel.setArchived(account, false) },
+                                            modifier = Modifier.testTag("account_unarchive_${account.id}")
+                                        ) {
+                                            Text("Unarchive")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     item {
                         Spacer(modifier = Modifier.height(72.dp))
                     }
@@ -273,6 +339,10 @@ fun AccountsScreen(
             onAdjustBalance = {
                 accountToEdit = null
                 accountToAdjust = currentAccount
+            },
+            onToggleArchived = {
+                viewModel.setArchived(currentAccount, !currentAccount.isArchived)
+                accountToEdit = null
             }
         )
     }

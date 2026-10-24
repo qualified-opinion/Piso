@@ -34,6 +34,7 @@ data class BackupData(
             obj.put("kind", acc.kind)
             obj.put("balance", acc.balance)
             obj.put("notes", acc.notes)
+            obj.put("isArchived", acc.isArchived)
             accArr.put(obj)
         }
         root.put("accounts", accArr)
@@ -173,7 +174,9 @@ data class BackupData(
                             name = obj.getString("name"),
                             kind = obj.optString("kind", "Cash"),
                             balance = obj.optDouble("balance", 0.0),
-                            notes = obj.optString("notes", "")
+                            notes = obj.optString("notes", ""),
+                            // Backups from before account archiving have no flag: not archived.
+                            isArchived = obj.optBoolean("isArchived", false)
                         )
                     )
                 }

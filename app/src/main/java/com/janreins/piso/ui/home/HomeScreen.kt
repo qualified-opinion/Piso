@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +69,8 @@ fun HomeScreen(
     val netWorth = uiState.netWorthSummary
     val monthSummary = uiState.currentMonthSummary
     val spendingBreakdown = uiState.currentMonthSpendingBreakdown
-    val accounts = uiState.accounts
+    // Archived accounts are left off the home card; their balances still count in net worth.
+    val accounts = remember(uiState.accounts) { uiState.accounts.filter { !it.isArchived } }
     val budgets = uiState.budgets
     val activeGoals = uiState.activeGoals
     val openDebts = uiState.openDebts

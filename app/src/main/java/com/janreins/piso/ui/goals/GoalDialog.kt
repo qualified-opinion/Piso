@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
+import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.data.models.Goal
 import com.janreins.piso.util.CurrencyUtil
 
@@ -47,6 +48,7 @@ fun GoalDialog(
     var currentText by remember {
         mutableStateOf(if (initialGoal != null) CurrencyUtil.formatInputAmount(initialGoal.currentAmount) else "")
     }
+    val pickerAccounts = remember(accounts) { accounts.forPicker(initialGoal?.accountId) }
     var selectedAccountId by remember {
         mutableStateOf(initialGoal?.accountId)
     }
@@ -117,8 +119,8 @@ fun GoalDialog(
                 )
 
                 // Optional Saved In Account
-                if (accounts.isNotEmpty()) {
-                    val currentAccountName = accounts.find { it.id == selectedAccountId }?.name ?: "None (General savings)"
+                if (pickerAccounts.isNotEmpty()) {
+                    val currentAccountName = pickerAccounts.find { it.id == selectedAccountId }?.name ?: "None (General savings)"
                     ExposedDropdownMenuBox(
                         expanded = accountDropdownExpanded,
                         onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
@@ -147,7 +149,7 @@ fun GoalDialog(
                                     accountDropdownExpanded = false
                                 }
                             )
-                            accounts.forEach { acc ->
+                            pickerAccounts.forEach { acc ->
                                 DropdownMenuItem(
                                     text = { Text("${acc.name} (${CurrencyUtil.formatPeso(acc.balance)})") },
                                     onClick = {

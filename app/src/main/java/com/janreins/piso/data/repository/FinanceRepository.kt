@@ -172,12 +172,24 @@ class FinanceRepository(
 
     /**
      * Updates an account's name, kind and notes. The balance is owned by the transaction logic,
-     * so it is taken from the database rather than from the (possibly stale) caller copy.
+     * so it is taken from the database rather than from the (possibly stale) caller copy. The
+     * archived flag only changes through [setAccountArchived].
      */
     suspend fun updateAccount(account: Account) {
         database.withTransaction {
             val stored = accountDao.getAccountById(account.id) ?: return@withTransaction
-            accountDao.updateAccount(account.copy(balance = stored.balance))
+            accountDao.updateAccount(account.copy(balance = stored.balance, isArchived = stored.isArchived))
+        }
+    }
+
+    /**
+     * Archives or unarchives an account. Nothing is deleted: the balance and its history stay,
+     * and the balance still counts in net worth. Archived accounts are left out of the pickers.
+     */
+    suspend fun setAccountArchived(accountId: Long, archived: Boolean) {
+        database.withTransaction {
+            val stored = accountDao.getAccountById(accountId) ?: return@withTransaction
+            accountDao.updateAccount(stored.copy(isArchived = archived))
         }
     }
 
