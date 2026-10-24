@@ -237,11 +237,7 @@ class UserProfileManagerTest {
         elapsed = 0L
         assertEquals(300, manager.getLockoutRemainingSeconds())
     }
-}
 
-// Robolectric excludes the JUnit class from instrumentation; use an instrumented caller
-// so System.currentTimeMillis() sees the adjustable test wall clock, as app code does.
-private object WallClockReader {
     @Test
     fun lockScreenResetNeedsTenWrongPinsAndCountSurvivesRestart() {
         manager.createProfile("Juan", "654987")
@@ -273,6 +269,10 @@ private object WallClockReader {
         manager.createProfile("Maria", null)
         assertTrue(manager.canResetFromLockScreen())
     }
+}
 
+// Robolectric excludes the JUnit class from instrumentation; use an instrumented caller
+// so System.currentTimeMillis() sees the adjustable test wall clock, as app code does.
+private object WallClockReader {
     fun now(): Long = System.currentTimeMillis()
 }
