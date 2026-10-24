@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -141,6 +143,47 @@ fun BudgetsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // --- Month Selector (same arrows as Activity; never past the current month) ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { viewModel.showPreviousMonth() },
+                    modifier = Modifier.testTag("budget_prev_month_button")
+                ) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Month")
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = currentMonthName,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.testTag("budget_month_label")
+                    )
+                    if (!uiState.isCurrentMonth) {
+                        TextButton(
+                            onClick = { viewModel.showCurrentMonth() },
+                            modifier = Modifier.testTag("budget_this_month_button")
+                        ) {
+                            Text("Back to this month")
+                        }
+                    }
+                }
+
+                IconButton(
+                    onClick = { viewModel.showNextMonth() },
+                    enabled = !uiState.isCurrentMonth,
+                    modifier = Modifier.testTag("budget_next_month_button")
+                ) {
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Month")
+                }
+            }
+
             // Summary Header Card
             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                 PisoCard(
