@@ -154,6 +154,17 @@ class UserProfileManager(
             .apply()
     }
 
+    /** Wrong PINs since the last correct one. Kept across restarts. */
+    fun failedAttempts(): Int = prefs.getInt(KEY_FAILED_ATTEMPTS, 0)
+
+    /**
+     * The lock screen offers "Clear all data and reset" only after [RESET_AFTER_FAILED_ATTEMPTS]
+     * wrong PINs, so the data can't be wiped by someone picking up the phone. With no PIN there
+     * is no lock screen to protect.
+     */
+    fun canResetFromLockScreen(): Boolean =
+        !hasPin() || failedAttempts() >= RESET_AFTER_FAILED_ATTEMPTS
+
     fun verifyPin(pin: String): Boolean {
         if (getLockoutRemainingSeconds() > 0) return false
         val storedHash = prefs.getString(KEY_PIN_HASH, "") ?: ""
@@ -213,6 +224,8 @@ class UserProfileManager(
     }
 
     companion object {
+        const val RESET_AFTER_FAILED_ATTEMPTS = 10
+
         private const val KEY_DISPLAY_NAME = "display_name"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_PIN_SALT = "pin_salt"

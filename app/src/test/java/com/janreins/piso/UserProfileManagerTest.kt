@@ -237,6 +237,38 @@ class UserProfileManagerTest {
         elapsed = 0L
         assertEquals(300, manager.getLockoutRemainingSeconds())
     }
+
+    @Test
+    fun lockScreenResetNeedsTenWrongPinsAndCountSurvivesRestart() {
+        manager.createProfile("Juan", "654987")
+        assertEquals(0, manager.failedAttempts())
+        assertFalse(manager.canResetFromLockScreen())
+
+        for (attempt in 1..9) {
+            assertFalse(manager.unlock("000000"))
+            assertEquals(attempt, manager.failedAttempts())
+            elapsed += 31_000 // let each 30-second cooldown end
+        }
+        assertFalse(manager.canResetFromLockScreen())
+
+        val rebuilt = UserProfileManager(context, { elapsed }, { boot })
+        assertEquals(9, rebuilt.failedAttempts())
+        assertFalse(rebuilt.unlock("000000"))
+        assertEquals(10, rebuilt.failedAttempts())
+        assertTrue(rebuilt.canResetFromLockScreen())
+
+        // A correct PIN after the cooldown starts the count again
+        elapsed += 301_000
+        assertTrue(rebuilt.unlock("654987"))
+        assertEquals(0, rebuilt.failedAttempts())
+        assertFalse(rebuilt.canResetFromLockScreen())
+    }
+
+    @Test
+    fun resetIsAlwaysAvailableWithoutPin() {
+        manager.createProfile("Maria", null)
+        assertTrue(manager.canResetFromLockScreen())
+    }
 }
 
 // Robolectric excludes the JUnit class from instrumentation; use an instrumented caller

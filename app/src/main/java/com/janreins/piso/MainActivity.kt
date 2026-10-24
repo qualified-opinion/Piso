@@ -127,6 +127,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 getLockoutRemainingSeconds = {
                                     appViewModel.getLockoutRemainingSeconds()
+                                },
+                                canResetAllData = {
+                                    appViewModel.canResetFromLockScreen()
                                 }
                             )
                         }
