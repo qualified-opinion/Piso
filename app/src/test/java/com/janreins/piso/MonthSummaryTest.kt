@@ -1,6 +1,7 @@
 package com.janreins.piso
 
 import com.janreins.piso.data.models.Transaction
+import com.janreins.piso.ui.budgets.budgetSpending
 import com.janreins.piso.ui.home.summarizeMonth
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -52,5 +53,32 @@ class MonthSummaryTest {
         assertEquals(0.0, september.spent, 0.0)
         assertEquals(0.0, september.income, 0.0)
         assertEquals(0.0, summarizeMonth(listOf(contribution), "2026-10").goalMoves, 0.0)
+    }
+
+    @Test
+    fun goalWithdrawalIsSubtractedFromGoalMoves() {
+        val day = millisOn(LocalDate.of(2026, 10, 5))
+        val moves = listOf(
+            Transaction(dateMillis = day, type = "TRANSFER", category = "Savings", amount = 800.0, goalId = 3, goalFlow = "IN"),
+            Transaction(dateMillis = day, type = "TRANSFER", category = "Savings", amount = 300.0, goalId = 3, goalFlow = "OUT")
+        )
+
+        assertEquals(500.0, summarizeMonth(moves, "2026-10").goalMoves, 0.0)
+    }
+
+    @Test
+    fun adjustmentsStayOutOfIncomeSpendingAndBudgets() {
+        val day = millisOn(LocalDate.of(2026, 10, 5))
+        val txs = listOf(
+            Transaction(dateMillis = day, type = "ADJUSTMENT", category = "Balance adjustment", amount = 120.0, transferToId = 1),
+            Transaction(dateMillis = day, type = "ADJUSTMENT", category = "Balance adjustment", amount = 40.0, accountId = 1),
+            Transaction(dateMillis = day, type = "EXPENSE", category = "Food", amount = 150.0, accountId = 1)
+        )
+
+        val october = summarizeMonth(txs, "2026-10")
+        assertEquals(0.0, october.income, 0.0)
+        assertEquals(150.0, october.spent, 0.0)
+        assertEquals(0.0, october.goalMoves, 0.0)
+        assertEquals(mapOf("Food" to 150.0), budgetSpending(txs, "2026-10"))
     }
 }

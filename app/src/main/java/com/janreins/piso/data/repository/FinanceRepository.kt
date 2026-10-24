@@ -12,6 +12,7 @@ import com.janreins.piso.data.models.Investment
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
+import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.CurrencyUtil.roundCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,6 +20,7 @@ import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlin.math.abs
 import kotlin.math.max
 
 /**
@@ -179,6 +181,38 @@ class FinanceRepository(
         }
     }
 
+    /**
+     * Sets an account to [newBalance] by recording an ADJUSTMENT for the difference, so the
+     * balance matches the real wallet or bank without a made-up income or expense. Adjustments
+     * stay out of income, spending and budgets. Returns false when nothing needed to change.
+     */
+    suspend fun adjustAccountBalance(
+        accountId: Long,
+        newBalance: Double,
+        dateMillis: Long = System.currentTimeMillis()
+    ): Boolean {
+        return database.withTransaction {
+            val account = accountDao.getAccountById(accountId) ?: return@withTransaction false
+            val target = roundCents(newBalance)
+            val difference = roundCents(target - account.balance)
+            if (difference == 0.0) return@withTransaction false
+            val increase = difference > 0
+            val tx = Transaction(
+                dateMillis = dateMillis,
+                type = "ADJUSTMENT",
+                category = "Balance adjustment",
+                subcategory = "",
+                amount = abs(difference),
+                note = "Balance set from ${CurrencyUtil.formatPeso(account.balance)} to ${CurrencyUtil.formatPeso(target)}",
+                accountId = if (increase) null else accountId,
+                transferToId = if (increase) accountId else null
+            )
+            applyTransactionBalance(tx)
+            transactionDao.insertTransaction(tx)
+            true
+        }
+    }
+
     suspend fun hasTransactionsForAccount(accountId: Long): Boolean =
         transactionDao.getTransactionCountForAccount(accountId) > 0
 
@@ -251,7 +285,9 @@ class FinanceRepository(
         when (tx.type) {
             "INCOME" -> adjustAccount(tx.accountId, sign * amount)
             "EXPENSE" -> adjustAccount(tx.accountId, -sign * amount)
-            "TRANSFER" -> {
+            // An adjustment has one side only: money comes in from outside (transferToId) or
+            // goes out to outside (accountId), so it moves the balance like a one-sided transfer.
+            "TRANSFER", "ADJUSTMENT" -> {
                 adjustAccount(tx.accountId, -sign * amount)
                 adjustAccount(tx.transferToId, sign * amount)
             }
@@ -338,6 +374,48 @@ class FinanceRepository(
             applyTransactionBalance(tx)
             transactionDao.insertTransaction(tx)
             goalDao.getGoalById(goalId)?.isCompleted == true
+        }
+    }
+
+    /**
+     * Takes money out of a goal, the reverse of [addMoneyToGoal]:
+     *  - If the goal's savings are kept in a linked account and [toAccountId] is a different
+     *    account, the money moves from the goal's account to [toAccountId] (a transfer).
+     *  - Otherwise the money stays where it is and is only released from the goal.
+     *
+     * Never takes out more than is saved, so the transaction amount is exactly what the goal
+     * lost and deleting it adds back exactly that. Returns the amount taken out.
+     */
+    suspend fun withdrawFromGoal(
+        goalId: Long,
+        amount: Double,
+        toAccountId: Long?,
+        dateMillis: Long = System.currentTimeMillis()
+    ): Double {
+        return database.withTransaction {
+            val goal = goalDao.getGoalById(goalId) ?: return@withTransaction 0.0
+            val applied = roundCents(minOf(amount, goal.currentAmount))
+            if (applied <= 0.0) return@withTransaction 0.0
+            val goalAccount = goal.accountId?.takeIf { accountDao.getAccountById(it) != null }
+            val destination = toAccountId?.takeIf { accountDao.getAccountById(it) != null }
+            val moves = goalAccount != null && destination != null && goalAccount != destination
+            val source = if (moves) goalAccount else goalAccount ?: destination
+
+            val tx = Transaction(
+                dateMillis = dateMillis,
+                type = "TRANSFER",
+                category = "Savings",
+                subcategory = "",
+                amount = applied,
+                note = "Taken from ${goal.name}",
+                accountId = source,
+                transferToId = if (moves) destination else source, // same as source when only released
+                goalId = goalId,
+                goalFlow = "OUT"
+            )
+            applyTransactionBalance(tx)
+            transactionDao.insertTransaction(tx)
+            applied
         }
     }
 

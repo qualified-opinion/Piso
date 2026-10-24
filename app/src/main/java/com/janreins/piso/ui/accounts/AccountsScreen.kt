@@ -67,6 +67,7 @@ fun AccountsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var accountToEdit by remember { mutableStateOf<Account?>(null) }
     var accountToDelete by remember { mutableStateOf<Account?>(null) }
+    var accountToAdjust by remember { mutableStateOf<Account?>(null) }
 
     val groupedAccounts = remember(accounts) {
         accounts.groupBy { it.kind }
@@ -268,6 +269,22 @@ fun AccountsScreen(
             onSave = { updatedAccount ->
                 viewModel.updateAccount(updatedAccount)
                 accountToEdit = null
+            },
+            onAdjustBalance = {
+                accountToEdit = null
+                accountToAdjust = currentAccount
+            }
+        )
+    }
+
+    // --- Adjust Balance Dialog ---
+    accountToAdjust?.let { targetAccount ->
+        AdjustBalanceDialog(
+            account = targetAccount,
+            onDismiss = { accountToAdjust = null },
+            onConfirm = { newBalance, dateMillis ->
+                viewModel.adjustBalance(targetAccount.id, newBalance, dateMillis)
+                accountToAdjust = null
             }
         )
     }

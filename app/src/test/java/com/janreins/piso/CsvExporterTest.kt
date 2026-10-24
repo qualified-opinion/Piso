@@ -33,6 +33,21 @@ class CsvExporterTest {
     }
 
     @Test
+    fun adjustmentSignedAmountFollowsDirection() {
+        val accounts = listOf(Account(id = 1, name = "Wallet", kind = "Cash", balance = 0.0))
+        val up = Transaction(id = 1, dateMillis = 1_900_000_000_000, type = "ADJUSTMENT", category = "Balance adjustment", amount = 120.5, transferToId = 1)
+        val down = Transaction(id = 2, dateMillis = 2_000_000_000_000, type = "ADJUSTMENT", category = "Balance adjustment", amount = 40.0, accountId = 1)
+
+        val lines = CsvExporter.transactionsToCsv(listOf(up, down), accounts)
+            .removePrefix("\uFEFF")
+            .trimEnd()
+            .split("\r\n")
+
+        assertTrue(lines[1].contains(",ADJUSTMENT,Balance adjustment,,120.50,120.50,,Wallet,"))
+        assertTrue(lines[2].contains(",ADJUSTMENT,Balance adjustment,,40.00,-40.00,Wallet,,"))
+    }
+
+    @Test
     fun escape_quotesSeparatorsAndNeutralisesFormulas() {
         assertEquals("\"Lunch, coffee\"", CsvExporter.escape("Lunch, coffee"))
         assertEquals("\"Say \"\"hi\"\"\"", CsvExporter.escape("Say \"hi\""))

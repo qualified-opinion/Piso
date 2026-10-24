@@ -79,6 +79,13 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun adjustBalance(accountId: Long, newBalance: Double, dateMillis: Long) {
+        viewModelScope.launch {
+            val changed = repository.adjustAccountBalance(accountId, newBalance, dateMillis)
+            showMessage(if (changed) "Balance adjusted" else "Balance already matches")
+        }
+    }
+
     fun showMessage(message: String) {
         viewModelScope.launch {
             _messageEvent.emit(message)

@@ -752,6 +752,7 @@ fun HomeScreen(
                                 text = when (tx.type) {
                                     "INCOME" -> "+${CurrencyUtil.formatPeso(tx.amount)}"
                                     "EXPENSE" -> "-${CurrencyUtil.formatPeso(tx.amount)}"
+                                    "ADJUSTMENT" -> (if (tx.transferToId != null) "+" else "-") + CurrencyUtil.formatPeso(tx.amount)
                                     else -> CurrencyUtil.formatPeso(tx.amount)
                                 },
                                 style = MaterialTheme.typography.bodyMedium.copy(

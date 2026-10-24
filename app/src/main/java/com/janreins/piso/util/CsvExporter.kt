@@ -27,6 +27,8 @@ object CsvExporter {
                 val signed = when (tx.type) {
                     "INCOME" -> tx.amount
                     "EXPENSE" -> -tx.amount
+                    // An adjustment changes the total: money in (transferToId) or out (accountId)
+                    "ADJUSTMENT" -> if (tx.transferToId != null) tx.amount else -tx.amount
                     else -> 0.0 // transfers move money between own accounts
                 }
                 val linkedTo = when {

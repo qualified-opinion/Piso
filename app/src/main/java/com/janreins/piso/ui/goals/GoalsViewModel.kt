@@ -94,6 +94,13 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun withdrawFromGoal(goalId: Long, amount: Double, toAccountId: Long?, dateMillis: Long) {
+        viewModelScope.launch {
+            val taken = repository.withdrawFromGoal(goalId, amount, toAccountId, dateMillis)
+            showMessage(if (taken > 0.0) "Took money out of goal" else "Nothing to take out")
+        }
+    }
+
     fun showMessage(message: String) {
         viewModelScope.launch {
             _messageEvent.emit(message)

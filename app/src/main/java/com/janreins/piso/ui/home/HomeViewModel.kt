@@ -212,7 +212,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
 /**
  * Income, spending and goal moves for the month [monthKey], counted by each transaction's own
- * date. Goal moves are kept out of income and spending.
+ * date. Goal moves are kept out of income and spending, and are net: money taken out of a goal
+ * is subtracted from money put in. Balance adjustments count as neither income nor spending.
  */
 internal fun summarizeMonth(txList: List<Transaction>, monthKey: String): MonthlySummary {
     var incomeSum = 0.0
@@ -223,7 +224,7 @@ internal fun summarizeMonth(txList: List<Transaction>, monthKey: String): Monthl
         if (DateUtil.getMonthKey(tx.dateMillis) == monthKey) {
             val isGoalMove = tx.goalId != null || tx.goalFlow != null
             if (isGoalMove) {
-                goalMovesSum += tx.amount
+                goalMovesSum += if (tx.goalFlow == "OUT") -tx.amount else tx.amount
             } else if (tx.type == "INCOME") {
                 incomeSum += tx.amount
             } else if (tx.type == "EXPENSE") {

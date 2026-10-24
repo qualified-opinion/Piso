@@ -43,7 +43,8 @@ import com.janreins.piso.util.CurrencyUtil
 fun AccountDialog(
     initialAccount: Account? = null,
     onDismiss: () -> Unit,
-    onSave: (Account) -> Unit
+    onSave: (Account) -> Unit,
+    onAdjustBalance: (() -> Unit)? = null
 ) {
     var name by remember { mutableStateOf(initialAccount?.name ?: "") }
     var kind by remember { mutableStateOf(initialAccount?.kind ?: Categories.ACCOUNT_KINDS.first()) }
@@ -158,6 +159,14 @@ fun AccountDialog(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                    if (onAdjustBalance != null) {
+                        TextButton(
+                            onClick = onAdjustBalance,
+                            modifier = Modifier.testTag("account_adjust_balance_button")
+                        ) {
+                            Text("Balance wrong? Adjust balance")
+                        }
                     }
                 }
 
