@@ -1,6 +1,6 @@
 # Piso roadmap
 
-Updated 2026-10-24. Main is at `af59866` (B8). The latest release is v1.0.3 (2026-10-14), published by Jan, so B5 to B8 are merged but not released yet. Jan plans to install one APK once the open batches are done.
+Updated 2026-10-24. Main is at `14f81c4` (B9). The latest release is v1.0.3 (2026-10-14), published by Jan, so B5 to B9 are merged but not released yet. Jan plans to install one APK once the open batches are done.
 
 ## What Piso is
 Piso is Jan's private, offline personal finance tracker for Android, covering accounts, transactions, budgets, goals, debts and investments in pesos. It's built with Kotlin, Compose and Room, and it has a PIN lock, `FLAG_SECURE` and no network access. Backups are JSON export and import, and CSV export.
@@ -8,9 +8,9 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 ## In plain words
 - **Done:** the first six batches of fixes are merged. Money totals are right, backups and restores are safe, the PIN lock holds, safety copies are cleaned up properly, and a set of small fixes is in (B1 to B6).
 - **Done since:** B7 lets Jan record goal and debt moves on a past date. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense.
-- **In review:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
-- **Waiting on Jan:** B10 (archive old accounts, view past budgets) needs decision D4.
-- **Not released:** v1.0.3 doesn't have B5 or B6 yet. Jan can ask for a signed APK whenever he wants them on his phone.
+- **Also done:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
+- **In progress:** B10a lets Jan look back at past months' budgets (in review). B10b, archiving old accounts, comes next and is the only batch that changes the database.
+- **Not released:** v1.0.3 doesn't have B5 onwards yet. Jan plans one APK after B10b.
 
 ## Status table
 
@@ -26,8 +26,9 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26, U4, B5 leftover copy cleanup | Merged, PR #11, `3d4ce09` | [batch6](handoffs/batch6-small-fixes.md) |
 | B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | Merged, PR #13, `cdb20cd` | [batch7](handoffs/batch7-backdate.md) |
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Merged, PR #14, `af59866` | [batch8](handoffs/batch8-goal-out-adjust.md) |
-| B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | In review | [batch9](handoffs/batch9-lock-reset.md) |
-| B10 | `feat/piso-b10-schema` | U2 account archive, U3 past-month budgets (database version 4) | Needs decision D4 | none |
+| B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | Merged, PR #15, `14f81c4` | [batch9](handoffs/batch9-lock-reset.md) |
+| B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | In review | [batch10](handoffs/batch10-budgets-archive.md) |
+| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | Pack ready, after B10a | [batch10](handoffs/batch10-budgets-archive.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -63,8 +64,8 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | P25 | P3 | A debt payment with no account counts as spending | Fixed in B6 |
 | P26 | P3 | Unused Secrets and Roborazzi plugins | Fixed in B6 |
 | U1 | UX | Adjust balance without a fake transaction | Fixed in B8 |
-| U2 | UX | Archive or hide old accounts | B10, decision D4 |
-| U3 | UX | View past months' budgets | B10, decision D4 |
+| U2 | UX | Archive or hide old accounts | B10b |
+| U3 | UX | View past months' budgets | Fixed in B10a (no schema change needed) |
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
@@ -74,10 +75,10 @@ Each pack uses the default below unless Jan says otherwise.
 - **D1 (P13), lock-screen RESET.** Settled 2026-10-24: Jan chose to offer RESET only after 10 wrong PINs (B9). The other options were keeping it as is or a 24-hour wait.
 - **D2 (P24), clipboard backup export.** Settled in B5: kept and marked sensitive.
 - **D3, paste-JSON import.** Keep it or remove it? Default: keep it.
-- **D4 (U2 and U3), schema batch.** Is a database change for archiving old accounts and viewing past months' budgets worth doing? It's the only batch that changes how data is stored, so it needs a migration and is the riskiest. Default: not scheduled.
+- **D4 (U2 and U3).** Settled 2026-10-24: Jan chose both. Past budgets turned out to need no database change (B10a); the account archive does (B10b).
 
 ## Later ideas (not scheduled)
-P12 PBKDF2 for the PIN hash. U2 and U3 moved to B10.
+P12 PBKDF2 for the PIN hash.
 
 ## Cut list
 - **P17 time zone:** Jan lives in Manila, and the change would alter how dates are stored.
@@ -94,6 +95,7 @@ P12 PBKDF2 for the PIN hash. U2 and U3 moved to B10.
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B10a (once released): go back to last month in Budgets and see last month's budgets and spending; the forward arrow is disabled on this month.
 - After B9 (once released): lock Piso and see no reset button; enter 10 wrong PINs and see it appear; unlock with the right PIN, lock again, and see the button gone.
 - After B8 (once released): take money out of a goal into another account and see both balances move; adjust a wallet up and down and see Spent unchanged; export CSV and see the adjustment's sign.
 - After B7 (once released): add money to a goal dated last month and see it under last month in Activity; record a debt payment dated last month and see this month's Spent unchanged; tap a goal move in Activity and read the new message.

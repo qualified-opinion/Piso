@@ -12,6 +12,7 @@ import com.janreins.piso.ui.state.CategorySpendingBreakdown
 import com.janreins.piso.ui.state.SubcategorySplit
 import com.janreins.piso.util.DateUtil
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -27,9 +28,16 @@ data class BudgetsUiState(
     val currentMonthCategorySpending: Map<String, Double> = emptyMap(),
     val currentMonthBreakdownMap: Map<String, CategorySpendingBreakdown> = emptyMap(),
     val categories: List<UserCategory> = emptyList(),
+    /** The month on screen: this month, or an earlier one Jan has stepped back to. */
     val currentMonthKey: String = DateUtil.getCurrentMonthKey(),
+    val isCurrentMonth: Boolean = true,
     val isEmpty: Boolean = false
 )
+
+private data class ViewedMonth(val key: String, val isCurrent: Boolean)
+
+/** Months can be stepped back into the past but never past the current month. */
+internal fun stepMonthOffset(offset: Int, delta: Int): Int = (offset + delta).coerceAtMost(0)
 
 class BudgetsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -50,7 +58,24 @@ class BudgetsViewModel(application: Application) : AndroidViewModel(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val transactions = repository.allTransactions
-    private val currentMonthKey = DateUtil.currentMonthKeyFlow()
+    // 0 is the current month, -1 the month before, and so on
+    private val monthOffset = MutableStateFlow(0)
+    private val viewedMonth = combine(DateUtil.currentMonthKeyFlow(), monthOffset) { currentKey, offset ->
+        ViewedMonth(DateUtil.shiftMonthKey(currentKey, offset), offset == 0)
+    }
+    private val currentMonthKey = viewedMonth.map { it.key }
+
+    fun showPreviousMonth() {
+        monthOffset.value = stepMonthOffset(monthOffset.value, -1)
+    }
+
+    fun showNextMonth() {
+        monthOffset.value = stepMonthOffset(monthOffset.value, 1)
+    }
+
+    fun showCurrentMonth() {
+        monthOffset.value = 0
+    }
 
     val currentMonthCategorySpending: StateFlow<Map<String, Double>> = combine(transactions, currentMonthKey) { txList, currentKey ->
         budgetSpending(txList, currentKey)
@@ -111,15 +136,16 @@ class BudgetsViewModel(application: Application) : AndroidViewModel(application)
         currentMonthCategorySpending,
         currentMonthBreakdownMap,
         categories,
-        currentMonthKey
-    ) { bdgts, spending, breakdown, cats, monthKey ->
+        viewedMonth
+    ) { bdgts, spending, breakdown, cats, month ->
         BudgetsUiState(
             isLoading = false,
             budgets = bdgts,
             currentMonthCategorySpending = spending,
             currentMonthBreakdownMap = breakdown,
             categories = cats,
-            currentMonthKey = monthKey,
+            currentMonthKey = month.key,
+            isCurrentMonth = month.isCurrent,
             isEmpty = bdgts.isEmpty()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BudgetsUiState())
