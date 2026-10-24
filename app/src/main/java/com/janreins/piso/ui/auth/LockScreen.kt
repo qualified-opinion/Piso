@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.ui.components.PinDots
 import com.janreins.piso.ui.components.PinKeypad
 import com.janreins.piso.ui.theme.ExpenseRed
@@ -56,6 +57,7 @@ fun LockScreen(
     onUnlock: (pin: String) -> Boolean,
     onResetAllData: () -> Unit,
     getLockoutRemainingSeconds: () -> Int = { 0 },
+    canResetAllData: () -> Boolean = { false },
     modifier: Modifier = Modifier
 ) {
     var enteredPin by remember { mutableStateOf("") }
@@ -64,6 +66,7 @@ fun LockScreen(
 
     var lockoutSecondsRemaining by remember { mutableIntStateOf(getLockoutRemainingSeconds()) }
 
+    var resetAvailable by remember { mutableStateOf(canResetAllData()) }
     var showResetDialog by remember { mutableStateOf(false) }
     var resetInputText by remember { mutableStateOf("") }
     var resetError by remember { mutableStateOf<String?>(null) }
@@ -178,6 +181,7 @@ fun LockScreen(
                             val success = onUnlock(newPin)
                             if (!success) {
                                 val remainingLockout = getLockoutRemainingSeconds()
+                                resetAvailable = canResetAllData()
                                 isPinError = true
                                 enteredPin = ""
 
@@ -214,27 +218,35 @@ fun LockScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Piso cannot recover a forgotten PIN because it is offline. You can keep using the app only after the correct PIN, or clear all data from this lock screen.",
+                    text = if (resetAvailable) {
+                        "Piso cannot recover a forgotten PIN because it is offline. You can keep using the app only after the correct PIN, or clear all data from this lock screen."
+                    } else {
+                        "Piso cannot recover a forgotten PIN because it is offline. After ${UserProfileManager.RESET_AFTER_FAILED_ATTEMPTS} wrong tries you can clear all data and start over."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                    lineHeight = 18.sp
+                    lineHeight = 18.sp,
+                    modifier = Modifier.testTag("lock_forgot_pin_text")
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                // Only after enough wrong PINs, so picking up the phone isn't enough to wipe Piso
+                if (resetAvailable) {
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(
-                    onClick = {
-                        resetInputText = ""
-                        resetError = null
-                        showResetDialog = true
-                    },
-                    modifier = Modifier.testTag("lock_forgot_reset_button")
-                ) {
-                    Text(
-                        text = "Clear all data and reset",
-                        color = ExpenseRed,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                    )
+                    TextButton(
+                        onClick = {
+                            resetInputText = ""
+                            resetError = null
+                            showResetDialog = true
+                        },
+                        modifier = Modifier.testTag("lock_forgot_reset_button")
+                    ) {
+                        Text(
+                            text = "Clear all data and reset",
+                            color = ExpenseRed,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
                 }
             }
 

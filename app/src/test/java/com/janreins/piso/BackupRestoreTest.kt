@@ -446,6 +446,41 @@ class BackupRestoreTest {
     fun appResetStillClearsProfileAndNavigationWhenCleanupThrows() = verifyAppReset(deleteFails = true)
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun lockScreenResetIsRefusedBeforeTenWrongPins() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val appSafety = BackupSafety(File(application.filesDir, "backups"))
+        val appRepository = FinanceRepository(database, appSafety)
+        val previous: AppDatabase? = ReflectionHelpers.getStaticField(AppDatabase::class.java, "INSTANCE")
+        val store = ViewModelStore()
+        val profile = UserProfileManager.getInstance(application)
+        try {
+            ReflectionHelpers.setStaticField(AppDatabase::class.java, "INSTANCE", database)
+            profile.createProfile("Juan", "654987")
+            appSafety.deleteAll()
+            assertTrue(appRepository.importBackupJson(fixture("Prior").toJsonString()))
+            appRepository.importBackupJson(fixture("Imported").toJsonString())
+            val app = AppViewModel(application).also { store.put("app", it) }
+            assertFalse(profile.verifyPin("000000"))
+            assertFalse(app.canResetFromLockScreen())
+
+            app.clearAllDataAndReset()
+
+            assertEquals("Juan", profile.userProfile.value.displayName)
+            assertTrue(profile.hasPin())
+            assertEquals("Imported", BackupData.fromJsonString(appRepository.exportBackupJson())!!.accounts.single().name)
+            assertTrue(appRepository.hasUndoRestore())
+        } finally {
+            store.clear()
+            profile.clearProfile()
+            appSafety.deleteAll()
+            ReflectionHelpers.setStaticField(AppDatabase::class.java, "INSTANCE", previous)
+            Dispatchers.resetMain()
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun verifyAppReset(deleteFails: Boolean) = runTest {
         Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val application = ApplicationProvider.getApplicationContext<Application>()

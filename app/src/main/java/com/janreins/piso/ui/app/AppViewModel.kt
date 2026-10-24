@@ -112,7 +112,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         profileManager.setThemeMode(mode)
     }
 
+    fun failedPinAttempts(): Int = profileManager.failedAttempts()
+
+    fun canResetFromLockScreen(): Boolean = profileManager.canResetFromLockScreen()
+
     fun clearAllDataAndReset() {
+        // Checked here as well as on the lock screen, so no UI path can wipe the data early
+        if (!profileManager.canResetFromLockScreen()) return
         viewModelScope.launch {
             repository.clearAllData(keepUndo = false)
             withContext(Dispatchers.IO) { backupSafety.deleteAllBestEffort() }
