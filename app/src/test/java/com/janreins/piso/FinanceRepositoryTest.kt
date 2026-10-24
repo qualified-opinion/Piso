@@ -597,4 +597,119 @@ class FinanceRepositoryTest {
             assertTrue(tx.dateMillis in before..after)
         }
     }
+
+    // --- Take money out of a goal (P09) ---
+
+    @Test
+    fun withdrawToAnotherAccountMovesMoneyOutOfGoalAccount() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+        val savings = repository.insertAccount(Account(name = "Savings", kind = "Bank", balance = 0.0))
+        val goalId = repository.insertGoal(Goal(name = "Trip", targetAmount = 5000.0, currentAmount = 0.0, accountId = savings))
+        repository.addMoneyToGoal(goalId, 800.0, wallet)
+
+        val taken = repository.withdrawFromGoal(goalId, 300.0, wallet)
+
+        assertEquals(300.0, taken, 0.0)
+        assertEquals(500.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
+        assertEquals(500.0, balanceOf(savings), 0.0)
+        assertEquals(500.0, balanceOf(wallet), 0.0)
+        assertEquals(1000.0, balanceOf(wallet) + balanceOf(savings), 0.0)
+        val out = repository.allTransactions.first().single { it.goalFlow == "OUT" }
+        assertEquals(savings, out.accountId)
+        assertEquals(wallet, out.transferToId)
+    }
+
+    @Test
+    fun withdrawWithNoDestinationOnlyLowersTheGoal() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+        val goalId = repository.insertGoal(Goal(name = "Trip", targetAmount = 5000.0, currentAmount = 600.0))
+
+        repository.withdrawFromGoal(goalId, 200.0, null)
+
+        assertEquals(400.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
+        assertEquals(1000.0, balanceOf(wallet), 0.0)
+    }
+
+    @Test
+    fun withdrawIsCappedAtSavedAmountAndDeleteRestoresGoalExactly() = runBlocking {
+        val goalId = repository.insertGoal(Goal(name = "Trip", targetAmount = 5000.0, currentAmount = 250.0))
+
+        val taken = repository.withdrawFromGoal(goalId, 400.0, null)
+
+        assertEquals(250.0, taken, 0.0)
+        assertEquals(0.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
+        val out = repository.allTransactions.first().single()
+        assertEquals(250.0, out.amount, 0.0)
+        repository.deleteTransaction(out)
+        assertEquals(250.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
+        assertEquals(0.0, repository.withdrawFromGoal(goalId, 0.0, null), 0.0)
+    }
+
+    @Test
+    fun completedGoalThatDropsBelowTargetIsReopened() = runBlocking {
+        val goalId = repository.insertGoal(Goal(name = "Phone", targetAmount = 1000.0, currentAmount = 0.0))
+        assertTrue(repository.addMoneyToGoal(goalId, 1000.0, null))
+        assertTrue(database.goalDao().getGoalById(goalId)!!.isCompleted)
+
+        repository.withdrawFromGoal(goalId, 100.0, null)
+
+        assertEquals(false, database.goalDao().getGoalById(goalId)!!.isCompleted)
+    }
+
+    // --- Adjust balance (U1) ---
+
+    @Test
+    fun adjustUpAndDownSetsExactBalanceAndDeleteRestoresIt() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+
+        assertTrue(repository.adjustAccountBalance(wallet, 1120.5))
+        assertEquals(1120.5, balanceOf(wallet), 0.0)
+        val up = repository.allTransactions.first().single()
+        assertEquals("ADJUSTMENT", up.type)
+        assertEquals(120.5, up.amount, 0.0)
+        assertEquals(null, up.accountId)
+        assertEquals(wallet, up.transferToId)
+
+        assertTrue(repository.adjustAccountBalance(wallet, 1000.004))
+        assertEquals(1000.0, balanceOf(wallet), 0.0)
+        val down = repository.allTransactions.first().single { it.id != up.id }
+        assertEquals(wallet, down.accountId)
+        assertEquals(null, down.transferToId)
+
+        repository.deleteTransaction(down)
+        assertEquals(1120.5, balanceOf(wallet), 0.0)
+        repository.deleteTransaction(up)
+        assertEquals(1000.0, balanceOf(wallet), 0.0)
+    }
+
+    @Test
+    fun adjustToSameBalanceCreatesNothing() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+
+        assertEquals(false, repository.adjustAccountBalance(wallet, 1000.001))
+
+        assertTrue(repository.allTransactions.first().isEmpty())
+        assertEquals(1000.0, balanceOf(wallet), 0.0)
+    }
+
+    @Test
+    fun adjustmentsAndGoalWithdrawalsSurviveBackupRoundTrip() = runBlocking {
+        val wallet = repository.insertAccount(Account(name = "Wallet", kind = "Cash", balance = 1000.0))
+        val savings = repository.insertAccount(Account(name = "Savings", kind = "Bank", balance = 0.0))
+        val goalId = repository.insertGoal(Goal(name = "Trip", targetAmount = 5000.0, currentAmount = 0.0, accountId = savings))
+        repository.addMoneyToGoal(goalId, 800.0, wallet)
+        repository.withdrawFromGoal(goalId, 300.0, wallet)
+        repository.adjustAccountBalance(wallet, 450.0)
+        val txBefore = repository.allTransactions.first()
+
+        val json = repository.exportBackupJson()
+        repository.clearAllData()
+        assertTrue(repository.importBackupJson(json))
+
+        assertEquals(450.0, balanceOf(wallet), 0.0)
+        assertEquals(500.0, balanceOf(savings), 0.0)
+        assertEquals(500.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
+        fun shape(txs: List<Transaction>) = txs.map { listOf(it.type, it.amount, it.accountId, it.transferToId, it.goalFlow) }.toSet()
+        assertEquals(shape(txBefore), shape(repository.allTransactions.first()))
+    }
 }

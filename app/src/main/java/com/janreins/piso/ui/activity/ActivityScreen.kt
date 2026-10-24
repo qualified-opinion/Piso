@@ -295,6 +295,8 @@ fun ActivityScreen(
                                     viewModel.showMessage("To change this, delete it here and add it again from Goals")
                                 } else if (tx.debtId != null) {
                                     viewModel.showMessage("To change this, delete it here and record it again from Debts")
+                                } else if (tx.type == "ADJUSTMENT") {
+                                    viewModel.showMessage("To change this, delete it and adjust again")
                                 } else {
                                     transactionToEdit = tx
                                 }
@@ -343,10 +345,11 @@ fun ActivityScreen(
                                             text = if (tx.type == "TRANSFER") {
                                                 if (isGoalTransfer) {
                                                     // Goal contributions: money set aside or moved to the goal's account
+                                                    val label = if (tx.goalFlow == "OUT") "From savings" else "Savings"
                                                     if (accountName != null && toAccountName != null && tx.accountId != tx.transferToId) {
-                                                        "Savings: $accountName → $toAccountName"
+                                                        "$label: $accountName → $toAccountName"
                                                     } else {
-                                                        "Savings"
+                                                        label
                                                     }
                                                 } else if (accountName != null && toAccountName != null) {
                                                     "$accountName → $toAccountName"
@@ -365,9 +368,11 @@ fun ActivityScreen(
                                                     append(" · ")
                                                 }
                                                 append(DateUtil.formatDate(tx.dateMillis))
-                                                if (accountName != null && (tx.type != "TRANSFER" || (isGoalTransfer && tx.accountId == tx.transferToId))) {
+                                                // An adjustment that adds money only has the "to" side filled in
+                                                val shownAccount = if (tx.type == "ADJUSTMENT") accountName ?: toAccountName else accountName
+                                                if (shownAccount != null && (tx.type != "TRANSFER" || (isGoalTransfer && tx.accountId == tx.transferToId))) {
                                                     append(" · ")
-                                                    append(accountName)
+                                                    append(shownAccount)
                                                 }
                                                 if (tx.note.isNotBlank()) {
                                                     append(" · ")
@@ -385,6 +390,7 @@ fun ActivityScreen(
                                         text = when (tx.type) {
                                             "INCOME" -> "+${CurrencyUtil.formatPeso(tx.amount)}"
                                             "EXPENSE" -> "-${CurrencyUtil.formatPeso(tx.amount)}"
+                                            "ADJUSTMENT" -> (if (tx.transferToId != null) "+" else "-") + CurrencyUtil.formatPeso(tx.amount)
                                             else -> CurrencyUtil.formatPeso(tx.amount)
                                         },
                                         style = MaterialTheme.typography.titleSmall.copy(

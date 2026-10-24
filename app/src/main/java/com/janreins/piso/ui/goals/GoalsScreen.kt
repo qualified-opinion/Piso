@@ -69,6 +69,7 @@ fun GoalsScreen(
     var goalToEdit by remember { mutableStateOf<Goal?>(null) }
     var goalToDelete by remember { mutableStateOf<Goal?>(null) }
     var goalToAddMoney by remember { mutableStateOf<Goal?>(null) }
+    var goalToUseMoney by remember { mutableStateOf<Goal?>(null) }
 
     val accountsMap = remember(accounts) {
         accounts.associateBy { it.id }
@@ -296,6 +297,19 @@ fun GoalsScreen(
                                     Text("Add money", fontSize = 14.sp)
                                 }
 
+                                if (goal.currentAmount > 0.0) {
+                                    OutlinedButton(
+                                        onClick = { goalToUseMoney = goal },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(44.dp)
+                                            .testTag("goal_use_money_button"),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Use money", fontSize = 13.sp)
+                                    }
+                                }
+
                                 OutlinedButton(
                                     onClick = {
                                         viewModel.setGoalCompleted(goal.id, !goal.isCompleted)
@@ -356,6 +370,19 @@ fun GoalsScreen(
             onConfirmAdd = { amount, fromAccId, dateMillis ->
                 viewModel.addMoneyToGoal(targetGoal.id, amount, fromAccId, dateMillis)
                 goalToAddMoney = null
+            }
+        )
+    }
+
+    // --- Use Money Dialog ---
+    goalToUseMoney?.let { targetGoal ->
+        UseMoneyGoalDialog(
+            goal = targetGoal,
+            accounts = accounts,
+            onDismiss = { goalToUseMoney = null },
+            onConfirmUse = { amount, toAccId, dateMillis ->
+                viewModel.withdrawFromGoal(targetGoal.id, amount, toAccId, dateMillis)
+                goalToUseMoney = null
             }
         )
     }

@@ -1,13 +1,14 @@
 # Piso roadmap
 
-Updated 2026-10-23. Main is at `3d4ce09` (B6). The latest release is v1.0.3 (2026-10-14), published by Jan, so B5 and B6 are merged but not released yet.
+Updated 2026-10-24. Main is at `cdb20cd` (B7). The latest release is v1.0.3 (2026-10-14), published by Jan, so B5 to B7 are merged but not released yet. Jan plans to install one APK once the open batches are done.
 
 ## What Piso is
 Piso is Jan's private, offline personal finance tracker for Android, covering accounts, transactions, budgets, goals, debts and investments in pesos. It's built with Kotlin, Compose and Room, and it has a PIN lock, `FLAG_SECURE` and no network access. Backups are JSON export and import, and CSV export.
 
 ## In plain words
-- **Done:** six batches of fixes are merged. Money totals are right, backups and restores are safe, the PIN lock holds, safety copies are cleaned up properly, and a set of small fixes is in (B1 to B6).
-- **Next:** B7, which lets Jan record goal and debt moves on a past date, is built and in review. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense. Its pack is written and waits only on Jan's go.
+- **Done:** the first six batches of fixes are merged. Money totals are right, backups and restores are safe, the PIN lock holds, safety copies are cleaned up properly, and a set of small fixes is in (B1 to B6).
+- **Done since:** B7 lets Jan record goal and debt moves on a past date.
+- **In review:** B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense.
 - **Waiting on Jan:** B9 (lock-screen RESET) needs decision D1 below. B10 (archive old accounts, view past budgets) needs decision D4.
 - **Not released:** v1.0.3 doesn't have B5 or B6 yet. Jan can ask for a signed APK whenever he wants them on his phone.
 
@@ -23,8 +24,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | Docs | `docs/piso-roadmap` | This folder, plus `AGENTS.md` and `CLAUDE.md` | Merged, PR #9, `a0c60b7` | none |
 | B5 | `fix/piso-b5-safety-copies` | P20, P21, P22, P24 safety-copy hygiene | Merged, PR #10, `622df4f` | [batch5](handoffs/batch5-safety-copies.md) |
 | B6 | `fix/piso-b6-small-fixes` | P15, P16, P25, P23, P26, U4, B5 leftover copy cleanup | Merged, PR #11, `3d4ce09` | [batch6](handoffs/batch6-small-fixes.md) |
-| B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | In review, PR #13 | [batch7](handoffs/batch7-backdate.md) |
-| B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Pack ready, waiting on Jan's go (after B7) | [batch8](handoffs/batch8-goal-out-adjust.md) |
+| B7 | `feat/piso-b7-backdate` | P08 backdated goal and debt moves, U5 Activity message | Merged, PR #13, `cdb20cd` | [batch7](handoffs/batch7-backdate.md) |
+| B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | In review | [batch8](handoffs/batch8-goal-out-adjust.md) |
 | B9 | `fix/piso-b9-lock-policy` | P13, depending on Jan's decision (P12 optional) | Needs decision D1 | none |
 | B10 | `feat/piso-b10-schema` | U2 account archive, U3 past-month budgets (database version 4) | Needs decision D4 | none |
 
@@ -43,7 +44,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | P06 | P2 | BOM fix and lint in CI | Fixed in B3 |
 | P07 | P2 | Monotonic PIN lockout | Fixed in B4 (the `apply()` gap is hardening only) |
 | P08 | P2 | Backdate goal and debt moves | Fixed in B7 |
-| P09 | P2 | Take money out of a goal | B8, pack ready |
+| P09 | P2 | Take money out of a goal | Fixed in B8 |
 | P10 | P3 | Goal completion updated by id | Fixed in B1 |
 | P11 | P3 | Rate-limit every PIN check | Fixed in B4 |
 | P12 | P3 | PIN key derivation (KDF) | Cut for now, optional in B9 |
@@ -61,7 +62,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | P24 | P3 | Clipboard backup isn't marked sensitive | Fixed in B5 |
 | P25 | P3 | A debt payment with no account counts as spending | Fixed in B6 |
 | P26 | P3 | Unused Secrets and Roborazzi plugins | Fixed in B6 |
-| U1 | UX | Adjust balance without a fake transaction | B8, pack ready |
+| U1 | UX | Adjust balance without a fake transaction | Fixed in B8 |
 | U2 | UX | Archive or hide old accounts | B10, decision D4 |
 | U3 | UX | View past months' budgets | B10, decision D4 |
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
@@ -97,6 +98,7 @@ P12 PBKDF2 for the PIN hash (optional in B9). U2 and U3 moved to B10.
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B8 (once released): take money out of a goal into another account and see both balances move; adjust a wallet up and down and see Spent unchanged; export CSV and see the adjustment's sign.
 - After B7 (once released): add money to a goal dated last month and see it under last month in Activity; record a debt payment dated last month and see this month's Spent unchanged; tap a goal move in Activity and read the new message.
 - After B6 (once released): edit a past month's budget and see it stay in that month; save a ₱0 investment; make a no-account debt payment and see Spent unchanged; pick a large non-backup file to import and see an error, not a freeze; read the Share Backup PIN note.
 

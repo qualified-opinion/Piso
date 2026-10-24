@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.models.Budget
+import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.state.CategorySpendingBreakdown
@@ -52,15 +53,7 @@ class BudgetsViewModel(application: Application) : AndroidViewModel(application)
     private val currentMonthKey = DateUtil.currentMonthKeyFlow()
 
     val currentMonthCategorySpending: StateFlow<Map<String, Double>> = combine(transactions, currentMonthKey) { txList, currentKey ->
-        val spending = mutableMapOf<String, Double>()
-        for (tx in txList) {
-            val isGoalMove = tx.goalId != null || tx.goalFlow != null
-            if (DateUtil.getMonthKey(tx.dateMillis) == currentKey && tx.type == "EXPENSE" && !isGoalMove) {
-                val cat = tx.category.ifBlank { "Other" }
-                spending[cat] = (spending[cat] ?: 0.0) + tx.amount
-            }
-        }
-        spending
+        budgetSpending(txList, currentKey)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val currentMonthSpendingBreakdown: StateFlow<List<CategorySpendingBreakdown>> = combine(transactions, currentMonthKey) { txList, currentKey ->
@@ -171,4 +164,20 @@ class BudgetsViewModel(application: Application) : AndroidViewModel(application)
             _messageEvent.emit(message)
         }
     }
+}
+
+/**
+ * Spending per category in the month [monthKey], as budgets count it: expenses only, so goal
+ * moves, transfers and balance adjustments never use up a budget.
+ */
+internal fun budgetSpending(txList: List<Transaction>, monthKey: String): Map<String, Double> {
+    val spending = mutableMapOf<String, Double>()
+    for (tx in txList) {
+        val isGoalMove = tx.goalId != null || tx.goalFlow != null
+        if (DateUtil.getMonthKey(tx.dateMillis) == monthKey && tx.type == "EXPENSE" && !isGoalMove) {
+            val cat = tx.category.ifBlank { "Other" }
+            spending[cat] = (spending[cat] ?: 0.0) + tx.amount
+        }
+    }
+    return spending
 }
