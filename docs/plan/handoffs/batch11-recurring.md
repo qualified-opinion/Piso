@@ -1,6 +1,6 @@
 # Batch 11: recurring expenses (U6), database version 5
 
-Jan asked on 2026-10-26 for recurring entries, so fixed costs (rent, subscriptions, a daily fare, a yearly insurance premium) don't have to be typed in every time. This pack waits on Jan's go and on decision D5 (below).
+Jan asked on 2026-10-26 for recurring entries, so fixed costs (rent, subscriptions, a daily fare, a yearly insurance premium) don't have to be typed in every time. Jan settled D5 on 2026-10-26 (option C, per schedule). This pack waits on Jan's go.
 
 - **Repo:** `qualified-opinion/Piso`
 - **Branch:** `claude/project-thread-co3kep`, from `main` at `518a591` (B10b).
@@ -24,7 +24,7 @@ Jan asked on 2026-10-26 for recurring entries, so fixed costs (rent, subscriptio
 ## Decision D5: make entries automatically, or ask first?
 - **A. Automatic.** Due entries are recorded straight away, and Home shows "3 recurring entries added" with a link to them in Activity.
 - **B. Ask first.** Due entries wait in a "Due" list on Home. Jan taps Record (and can change the amount first) or Skip. Nothing touches balances until he does.
-- **C. Choose per schedule (default).** Each schedule has an "Ask me before recording" switch, off by default. Fixed amounts like rent run on their own; ones that vary, like electricity, wait for Jan to confirm the real amount.
+- **C. Choose per schedule (Jan's choice, 2026-10-26).** Each schedule has an "Ask me before recording" switch, off by default. Fixed amounts like rent run on their own; ones that vary, like electricity, wait for Jan to confirm the real amount.
 
 Under B and C, a skipped date is gone for good, and "Due" entries keep their original dates when recorded late.
 

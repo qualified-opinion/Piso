@@ -11,7 +11,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Also done:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
 - **Also done:** B10a lets Jan look back at past months' budgets (PR #16).
 - **Also done:** B10b lets Jan archive old accounts (database version 4, PR #17).
-- **Next:** B11 adds recurring expenses and income (database version 5). The plan is ready and waits on Jan's go and decision D5.
+- **Next:** B11 adds recurring expenses and income (database version 5). The plan is ready (D5 settled: per schedule) and waits on Jan's go.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet.
 
 ## Status table
@@ -31,7 +31,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | Merged, PR #15, `14f81c4` | [batch9](handoffs/batch9-lock-reset.md) |
 | B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | Merged, PR #16, `bf8dac7` | [batch10](handoffs/batch10-budgets-archive.md) |
 | B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | Merged, PR #17, `518a591` | [batch10](handoffs/batch10-budgets-archive.md) |
-| B11 | `claude/project-thread-co3kep` | U6 recurring expenses and income (database version 5) | Pack ready, waiting on Jan's go and D5 | [batch11](handoffs/batch11-recurring.md) |
+| B11 | `claude/project-thread-co3kep` | U6 recurring expenses and income (database version 5) | Pack ready, waiting on Jan's go | [batch11](handoffs/batch11-recurring.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -80,7 +80,7 @@ Each pack uses the default below unless Jan says otherwise.
 - **D2 (P24), clipboard backup export.** Settled in B5: kept and marked sensitive.
 - **D3, paste-JSON import.** Keep it or remove it? Default: keep it.
 - **D4 (U2 and U3).** Settled 2026-10-24: Jan chose both. Past budgets turned out to need no database change (B10a); the account archive does (B10b).
-- **D5 (U6), recurring entries.** Record due entries automatically, ask Jan first, or choose per schedule? Default: choose per schedule, with automatic as each schedule's default.
+- **D5 (U6), recurring entries.** Settled 2026-10-26: Jan chose per schedule. Each schedule has an "Ask me before recording" switch, off by default.
 
 ## Later ideas (not scheduled)
 P12 PBKDF2 for the PIN hash.
