@@ -482,7 +482,8 @@ fun TransactionDialog(
                         transferToId = if (type == "TRANSFER") transferToAccountId else null,
                         goalId = initialTransaction?.goalId,
                         goalFlow = initialTransaction?.goalFlow,
-                        debtId = initialTransaction?.debtId
+                        debtId = initialTransaction?.debtId,
+                        recurringId = initialTransaction?.recurringId
                     )
                     onSave(tx)
                 },

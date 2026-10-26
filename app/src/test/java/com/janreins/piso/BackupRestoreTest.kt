@@ -47,7 +47,7 @@ class BackupRestoreTest {
     private var observeQueries = false
     private var onDeleteAccounts: (() -> Unit)? = null
     private val coreTables = setOf("accounts", "transactions", "budgets", "goals", "debts",
-        "investments", "user_categories", "user_subcategories")
+        "investments", "user_categories", "user_subcategories", "recurring_rules")
     private val transactionReads = mutableMapOf<String, Boolean>()
 
     @Before
@@ -73,13 +73,17 @@ class BackupRestoreTest {
 
     private fun fixture(name: String) = BackupData(
         accounts = listOf(Account(id = 1, name = name, kind = "Cash", balance = 900.0)),
-        transactions = listOf(Transaction(id = 1, dateMillis = 1234, type = "INCOME", amount = 100.0, accountId = 1)),
+        transactions = listOf(Transaction(id = 1, dateMillis = 1234, type = "INCOME", amount = 100.0, accountId = 1, recurringId = 1)),
         budgets = listOf(Budget(id = 1, category = name, limitAmount = 500.0, monthKey = "2026-10")),
         goals = listOf(Goal(id = 1, name = name, targetAmount = 1000.0, currentAmount = 50.0)),
         debts = listOf(Debt(id = 1, name = name, kind = "Other", originalAmount = 500.0, remainingAmount = 300.0)),
         investments = listOf(Investment(id = 1, name = name, kind = "Stocks", currentValue = 300.0, lastUpdatedMillis = 1234)),
         categories = listOf(UserCategory(id = 1, name = name, kind = "EXPENSE")),
-        subcategories = listOf(UserSubcategory(id = 1, parentCategoryName = name, name = "Sub"))
+        subcategories = listOf(UserSubcategory(id = 1, parentCategoryName = name, name = "Sub")),
+        recurringRules = listOf(
+            RecurringRule(id = 1, type = "INCOME", category = name, amount = 100.0, accountId = 1,
+                frequency = RecurringRule.MONTHLY, anchorDay = 31, startDay = 20_000, nextDueDay = 20_031, askFirst = true)
+        )
     )
 
     private suspend fun snapshot(): BackupData = BackupData.fromJsonString(repository.exportBackupJson())!!

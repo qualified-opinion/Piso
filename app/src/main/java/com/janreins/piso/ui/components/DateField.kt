@@ -33,7 +33,8 @@ fun DateField(
     dateMillis: Long,
     onDateChange: (Long) -> Unit,
     testTagPrefix: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    label: String = "Date"
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -49,7 +50,7 @@ fun DateField(
             contentDescription = null,
             modifier = Modifier.padding(end = 8.dp)
         )
-        Text("Date: ${DateUtil.formatDate(dateMillis)}")
+        Text("$label: ${DateUtil.formatDate(dateMillis)}")
     }
 
     if (showDatePicker) {

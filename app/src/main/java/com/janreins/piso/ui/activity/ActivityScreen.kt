@@ -378,6 +378,7 @@ fun ActivityScreen(
                                                     append(" · ")
                                                     append(tx.note)
                                                 }
+                                                if (tx.recurringId != null) append(" · Recurring")
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant

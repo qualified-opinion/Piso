@@ -15,6 +15,8 @@ data class BackupData(
     val investments: List<Investment>,
     val categories: List<UserCategory> = emptyList(),
     val subcategories: List<UserSubcategory> = emptyList(),
+    // Backups from before recurring schedules have none.
+    val recurringRules: List<RecurringRule> = emptyList(),
     val version: Int = CURRENT_VERSION,
     val exportedAt: Long? = System.currentTimeMillis(),
     // Older backups may omit category data; preserve local categories in that case.
@@ -54,6 +56,7 @@ data class BackupData(
             if (tx.goalId != null) obj.put("goalId", tx.goalId)
             if (tx.goalFlow != null) obj.put("goalFlow", tx.goalFlow)
             if (tx.debtId != null) obj.put("debtId", tx.debtId)
+            if (tx.recurringId != null) obj.put("recurringId", tx.recurringId)
             txArr.put(obj)
         }
         root.put("transactions", txArr)
@@ -134,6 +137,28 @@ data class BackupData(
         }
         root.put("subcategories", subcatArr)
 
+        val ruleArr = JSONArray()
+        recurringRules.forEach { rule ->
+            val obj = JSONObject()
+            obj.put("id", rule.id)
+            obj.put("type", rule.type)
+            obj.put("category", rule.category)
+            obj.put("subcategory", rule.subcategory)
+            obj.put("amount", rule.amount)
+            obj.put("note", rule.note)
+            if (rule.accountId != null) obj.put("accountId", rule.accountId)
+            obj.put("frequency", rule.frequency)
+            obj.put("intervalCount", rule.intervalCount)
+            obj.put("anchorDay", rule.anchorDay)
+            obj.put("startDay", rule.startDay)
+            if (rule.endDay != null) obj.put("endDay", rule.endDay)
+            obj.put("nextDueDay", rule.nextDueDay)
+            obj.put("isPaused", rule.isPaused)
+            obj.put("askFirst", rule.askFirst)
+            ruleArr.put(obj)
+        }
+        root.put("recurringRules", ruleArr)
+
         return root.toString(2)
     }
 
@@ -157,7 +182,7 @@ data class BackupData(
                     versionValue.toInt() !in SUPPORTED_VERSIONS) return null
                 if (root.has("appName") && root.optString("appName") != "Piso") return null
                 if (CORE_ARRAY_KEYS.any { root.optJSONArray(it) == null }) return null
-                if (listOf("categories", "subcategories").any {
+                if (listOf("categories", "subcategories", "recurringRules").any {
                         root.has(it) && root.optJSONArray(it) == null
                     }) return null
                 val exportedAt = if (root.has("exportedAt") && !root.isNull("exportedAt")) {
@@ -198,7 +223,8 @@ data class BackupData(
                             transferToId = if (obj.has("transferToId")) obj.getLong("transferToId") else null,
                             goalId = if (obj.has("goalId")) obj.getLong("goalId") else null,
                             goalFlow = if (obj.has("goalFlow")) obj.getString("goalFlow") else null,
-                            debtId = if (obj.has("debtId")) obj.getLong("debtId") else null
+                            debtId = if (obj.has("debtId")) obj.getLong("debtId") else null,
+                            recurringId = if (obj.has("recurringId")) obj.getLong("recurringId") else null
                         )
                     )
                 }
@@ -310,7 +336,37 @@ data class BackupData(
                     }
                 }
 
+                val recurringRules = mutableListOf<RecurringRule>()
+                val ruleArr = root.optJSONArray("recurringRules") ?: JSONArray()
+                for (i in 0 until ruleArr.length()) {
+                    val obj = ruleArr.getJSONObject(i)
+                    val startDay = obj.getLong("startDay")
+                    val frequency = obj.getString("frequency").uppercase()
+                    val type = obj.getString("type").uppercase()
+                    if (frequency !in RecurringRule.FREQUENCIES || type !in setOf("INCOME", "EXPENSE")) return null
+                    recurringRules.add(
+                        RecurringRule(
+                            id = obj.optLong("id", 0L),
+                            type = type,
+                            category = obj.getString("category"),
+                            subcategory = obj.optString("subcategory", ""),
+                            amount = obj.getDouble("amount"),
+                            note = obj.optString("note", ""),
+                            accountId = if (obj.has("accountId")) obj.getLong("accountId") else null,
+                            frequency = frequency,
+                            intervalCount = obj.optInt("intervalCount", 1).coerceAtLeast(1),
+                            anchorDay = obj.optInt("anchorDay", java.time.LocalDate.ofEpochDay(startDay).dayOfMonth),
+                            startDay = startDay,
+                            endDay = if (obj.has("endDay")) obj.getLong("endDay") else null,
+                            nextDueDay = obj.optLong("nextDueDay", startDay),
+                            isPaused = obj.optBoolean("isPaused", false),
+                            askFirst = obj.optBoolean("askFirst", false)
+                        )
+                    )
+                }
+
                 BackupData(accounts, transactions, budgets, goals, debts, investments, categories, subcategories,
+                    recurringRules = recurringRules,
                     version = versionValue.toInt(), exportedAt = exportedAt,
                     hasCategoryData = root.has("categories"))
             } catch (_: Exception) {

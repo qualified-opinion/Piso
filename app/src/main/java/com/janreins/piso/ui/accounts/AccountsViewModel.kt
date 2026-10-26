@@ -81,6 +81,10 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
                 showMessage("Move or delete this account’s activity first.")
                 return@launch
             }
+            if (repository.hasRecurringForAccount(account.id)) {
+                showMessage("A recurring schedule uses this account. Change or delete it in Recurring first.")
+                return@launch
+            }
             repository.deleteAccount(account)
             showMessage("Account deleted")
         }

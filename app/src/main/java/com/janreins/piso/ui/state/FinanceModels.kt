@@ -13,7 +13,8 @@ enum class MoreSubScreen {
     DEBTS,
     INVEST,
     SETTINGS,
-    CATEGORIES
+    CATEGORIES,
+    RECURRING
 }
 
 data class MonthlySummary(

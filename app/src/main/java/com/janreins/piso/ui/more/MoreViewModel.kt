@@ -23,7 +23,8 @@ data class MoreUiState(
     val debts: List<Debt> = emptyList(),
     val investments: List<Investment> = emptyList(),
     val totalInvestments: Double = 0.0,
-    val totalDebtsRemaining: Double = 0.0
+    val totalDebtsRemaining: Double = 0.0,
+    val recurringCount: Int = 0
 )
 
 class MoreViewModel(application: Application) : AndroidViewModel(application) {
@@ -50,15 +51,17 @@ class MoreViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<MoreUiState> = combine(
         budgets,
         debts,
-        investments
-    ) { bdgts, dts, invs ->
+        investments,
+        repository.allRecurringRules
+    ) { bdgts, dts, invs, rules ->
         MoreUiState(
             isLoading = false,
             budgets = bdgts,
             debts = dts,
             investments = invs,
             totalInvestments = invs.sumOf { it.currentValue },
-            totalDebtsRemaining = dts.sumOf { it.remainingAmount }
+            totalDebtsRemaining = dts.sumOf { it.remainingAmount },
+            recurringCount = rules.size
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MoreUiState())
 

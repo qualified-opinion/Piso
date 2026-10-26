@@ -31,6 +31,9 @@ interface TransactionDao {
     @Query("UPDATE transactions SET debtId = NULL WHERE debtId = :debtId")
     suspend fun detachDebt(debtId: Long)
 
+    @Query("UPDATE transactions SET recurringId = NULL WHERE recurringId = :ruleId")
+    suspend fun detachRecurring(ruleId: Long)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: Transaction): Long
 

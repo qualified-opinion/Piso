@@ -268,7 +268,8 @@ fun AccountDialog(
 /** What archiving does, with a nudge to clear a balance the user no longer has. */
 internal fun archiveExplanation(balance: Double): String {
     val base = "Archiving hides this account from the account pickers and the main list. " +
-        "Nothing is deleted, its history stays in Activity, and its balance still counts in net worth."
+        "Nothing is deleted, its history stays in Activity, and its balance still counts in net worth. " +
+        "Recurring schedules that use it are paused."
     return if (balance == 0.0) base
     else "$base It still holds ${CurrencyUtil.formatPeso(balance)}, so move or adjust that balance first if the money is gone."
 }

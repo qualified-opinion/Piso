@@ -74,6 +74,30 @@ object DateUtil {
         }
     }.distinctUntilChanged()
 
+    /** Today as an epoch day (`LocalDate.toEpochDay()`), the unit recurring schedules use. */
+    fun todayEpochDay(): Long = LocalDate.now(zone()).toEpochDay()
+
+    /** Emits today's epoch day now and again after midnight, checking once a minute. */
+    fun currentEpochDayFlow(checkIntervalMillis: Long = 60_000L): Flow<Long> = flow {
+        while (true) {
+            emit(todayEpochDay())
+            delay(checkIntervalMillis)
+        }
+    }.distinctUntilChanged()
+
+    /** The calendar day of a local timestamp, as an epoch day. */
+    fun toEpochDay(millis: Long): Long = toLocalDateTime(millis).toLocalDate().toEpochDay()
+
+    /**
+     * A timestamp on the epoch day [epochDay], at noon local time. Entries made by a recurring
+     * schedule use this, so they sit in the middle of their day.
+     */
+    fun epochDayToMillis(epochDay: Long): Long =
+        LocalDate.ofEpochDay(epochDay).atTime(12, 0).atZone(zone()).toInstant().toEpochMilli()
+
+    /** Formats an epoch day like [formatDate], e.g. "Sep 1, 2026". */
+    fun formatEpochDay(epochDay: Long): String = fullDateFormat.format(LocalDate.ofEpochDay(epochDay))
+
     /**
      * Returns the month key for a given timestamp, e.g. "2026-09"
      */

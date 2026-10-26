@@ -9,15 +9,19 @@ import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Goal
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.RecurringRule
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.CurrencyUtil.roundCents
+import com.janreins.piso.util.DateUtil
+import com.janreins.piso.util.RecurringSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
@@ -38,6 +42,7 @@ class FinanceRepository(
     private val debtDao = database.debtDao()
     private val investmentDao = database.investmentDao()
     private val categoryDao = database.categoryDao()
+    private val recurringDao = database.recurringDao()
 
     // --- Flows ---
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
@@ -50,6 +55,7 @@ class FinanceRepository(
     val allInvestments: Flow<List<Investment>> = investmentDao.getAllInvestments()
     val allCategories: Flow<List<UserCategory>> = categoryDao.getAllCategories()
     val allSubcategories: Flow<List<UserSubcategory>> = categoryDao.getAllSubcategories()
+    val allRecurringRules: Flow<List<RecurringRule>> = recurringDao.getAllRules()
 
     fun getRecentTransactions(limit: Int = 6): Flow<List<Transaction>> =
         transactionDao.getRecentTransactions(limit)
@@ -190,6 +196,8 @@ class FinanceRepository(
         database.withTransaction {
             val stored = accountDao.getAccountById(accountId) ?: return@withTransaction
             accountDao.updateAccount(stored.copy(isArchived = archived))
+            // Schedules can't keep recording into an account that is hidden from the pickers.
+            if (archived) recurringDao.pauseRulesForAccount(accountId)
         }
     }
 
@@ -228,9 +236,12 @@ class FinanceRepository(
     suspend fun hasTransactionsForAccount(accountId: Long): Boolean =
         transactionDao.getTransactionCountForAccount(accountId) > 0
 
+    suspend fun hasRecurringForAccount(accountId: Long): Boolean =
+        recurringDao.countRulesForAccount(accountId) > 0
+
     suspend fun deleteAccount(account: Account): Boolean {
         return database.withTransaction {
-            if (hasTransactionsForAccount(account.id)) {
+            if (hasTransactionsForAccount(account.id) || hasRecurringForAccount(account.id)) {
                 return@withTransaction false
             }
             accountDao.deleteAccount(account)
@@ -514,6 +525,182 @@ class FinanceRepository(
         investmentDao.updateInvestment(investment.copy(currentValue = roundCents(investment.currentValue)))
     suspend fun deleteInvestment(investment: Investment) = investmentDao.deleteInvestment(investment)
 
+    // --- Recurring schedules ---
+    //
+    // A schedule's nextDueDay is the oldest date not yet handled. Recording or skipping a date
+    // and moving nextDueDay past it happen in one database transaction, so a date is never
+    // recorded twice, even if the app is closed halfway.
+
+    private fun normalizeRule(rule: RecurringRule) = rule.copy(
+        category = rule.category.trim(),
+        subcategory = rule.subcategory.trim(),
+        note = rule.note.trim(),
+        amount = roundCents(rule.amount),
+        intervalCount = rule.intervalCount.coerceAtLeast(1),
+        anchorDay = LocalDate.ofEpochDay(rule.startDay).dayOfMonth,
+        endDay = rule.endDay?.takeIf { it >= rule.startDay }
+    )
+
+    /** Adds a schedule. Its first date is its start date, which may be in the past. */
+    suspend fun insertRecurringRule(rule: RecurringRule): Long {
+        val normalized = normalizeRule(rule)
+        return recurringDao.insertRule(normalized.copy(nextDueDay = normalized.startDay, isPaused = false))
+    }
+
+    /**
+     * Saves changes to a schedule. They apply to future dates only: dates already recorded or
+     * skipped are not repeated. If nothing has been handled yet, the schedule starts over from
+     * its (new) start date.
+     */
+    suspend fun updateRecurringRule(rule: RecurringRule) {
+        database.withTransaction {
+            val stored = recurringDao.getRuleById(rule.id) ?: return@withTransaction
+            val updated = normalizeRule(rule)
+            val scheduleChanged = updated.startDay != stored.startDay ||
+                updated.frequency != stored.frequency ||
+                updated.intervalCount != stored.intervalCount
+            val nextDue = when {
+                !scheduleChanged -> stored.nextDueDay
+                stored.nextDueDay == stored.startDay -> updated.startDay
+                else -> RecurringSchedule.firstDateOnOrAfter(
+                    start = LocalDate.ofEpochDay(updated.startDay),
+                    notBefore = LocalDate.ofEpochDay(stored.nextDueDay),
+                    frequency = updated.frequency,
+                    intervalCount = updated.intervalCount,
+                    anchorDay = updated.anchorDay
+                ).toEpochDay()
+            }
+            recurringDao.updateRule(updated.copy(nextDueDay = nextDue, isPaused = stored.isPaused))
+        }
+    }
+
+    /**
+     * Pauses or resumes a schedule. Dates that passed while it was paused are not caught up:
+     * on resume the next date is the first one from [today] on. A schedule whose account is
+     * archived can't be resumed until the account is unarchived. Returns false if nothing changed.
+     */
+    suspend fun setRecurringPaused(
+        ruleId: Long,
+        paused: Boolean,
+        today: Long = DateUtil.todayEpochDay()
+    ): Boolean {
+        return database.withTransaction {
+            val stored = recurringDao.getRuleById(ruleId) ?: return@withTransaction false
+            if (stored.isPaused == paused) return@withTransaction false
+            if (paused) {
+                recurringDao.updateRule(stored.copy(isPaused = true))
+                return@withTransaction true
+            }
+            val account = stored.accountId?.let { accountDao.getAccountById(it) }
+            if (stored.accountId != null && (account == null || account.isArchived)) {
+                return@withTransaction false
+            }
+            val nextDue = RecurringSchedule.firstDateOnOrAfter(
+                start = LocalDate.ofEpochDay(stored.nextDueDay),
+                notBefore = LocalDate.ofEpochDay(today),
+                frequency = stored.frequency,
+                intervalCount = stored.intervalCount,
+                anchorDay = stored.anchorDay
+            ).toEpochDay()
+            recurringDao.updateRule(stored.copy(isPaused = false, nextDueDay = nextDue))
+            true
+        }
+    }
+
+    /** Deletes a schedule. Entries it already recorded stay as ordinary transactions. */
+    suspend fun deleteRecurringRule(rule: RecurringRule) {
+        database.withTransaction {
+            transactionDao.detachRecurring(rule.id)
+            recurringDao.deleteRule(rule)
+        }
+    }
+
+    /**
+     * Records every date that has come round for the schedules that don't ask first, each on its
+     * own date, up to and including [today]. A schedule whose account was archived or deleted is
+     * paused instead. Returns the number of entries made.
+     */
+    suspend fun postDueRecurring(today: Long = DateUtil.todayEpochDay()): Int {
+        var total = 0
+        while (true) {
+            // One batch per database transaction; a schedule started long ago takes a few.
+            val made = database.withTransaction {
+                var count = 0
+                for (rule in recurringDao.getDueRules(today)) {
+                    if (rule.askFirst || rule.hasEnded) continue
+                    val account = rule.accountId?.let { accountDao.getAccountById(it) }
+                    if (rule.accountId != null && (account == null || account.isArchived)) {
+                        recurringDao.updateRule(rule.copy(isPaused = true))
+                        continue
+                    }
+                    val dates = RecurringSchedule.dueDates(rule, LocalDate.ofEpochDay(today))
+                    if (dates.isEmpty()) continue
+                    dates.forEach { day -> recordRecurringEntry(rule, day.toEpochDay(), rule.amount) }
+                    val nextDue = RecurringSchedule.nextDate(rule, dates.last()).toEpochDay()
+                    recurringDao.updateRule(rule.copy(nextDueDay = nextDue))
+                    count += dates.size
+                }
+                count
+            }
+            if (made == 0) return total
+            total += made
+        }
+    }
+
+    /**
+     * Records the oldest waiting date of an ask-first schedule, with [amount] (Jan may change it,
+     * for example for an electricity bill). [dueDay] must be the date shown, so a repeated tap
+     * can't record the next date by mistake. Returns false if it wasn't recorded.
+     */
+    suspend fun recordDueRecurring(
+        ruleId: Long,
+        dueDay: Long,
+        amount: Double,
+        today: Long = DateUtil.todayEpochDay()
+    ): Boolean = handleDueRecurring(ruleId, dueDay, today) { rule ->
+        recordRecurringEntry(rule, dueDay, amount)
+    }
+
+    /** Skips the oldest waiting date of a schedule without recording anything. */
+    suspend fun skipDueRecurring(
+        ruleId: Long,
+        dueDay: Long,
+        today: Long = DateUtil.todayEpochDay()
+    ): Boolean = handleDueRecurring(ruleId, dueDay, today) {}
+
+    private suspend fun handleDueRecurring(
+        ruleId: Long,
+        dueDay: Long,
+        today: Long,
+        action: suspend (RecurringRule) -> Unit
+    ): Boolean {
+        return database.withTransaction {
+            val rule = recurringDao.getRuleById(ruleId) ?: return@withTransaction false
+            if (rule.isPaused || rule.hasEnded || rule.nextDueDay != dueDay || dueDay > today) {
+                return@withTransaction false
+            }
+            action(rule)
+            val nextDue = RecurringSchedule.nextDate(rule, LocalDate.ofEpochDay(dueDay)).toEpochDay()
+            recurringDao.updateRule(rule.copy(nextDueDay = nextDue))
+            true
+        }
+    }
+
+    private suspend fun recordRecurringEntry(rule: RecurringRule, day: Long, amount: Double) {
+        val tx = Transaction(
+            dateMillis = DateUtil.epochDayToMillis(day),
+            type = rule.type,
+            category = rule.category,
+            subcategory = rule.subcategory,
+            amount = roundCents(amount),
+            note = rule.note,
+            accountId = rule.accountId,
+            recurringId = rule.id
+        )
+        applyTransactionBalance(tx)
+        transactionDao.insertTransaction(tx)
+    }
+
     // --- Backup & Restore & Clear ---
     suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         database.withTransaction { readBackupData().toJsonString() }
@@ -527,7 +714,8 @@ class FinanceRepository(
         debts = debtDao.getAllDebts().first(),
         investments = investmentDao.getAllInvestments().first(),
         categories = categoryDao.getAllCategories().first(),
-        subcategories = categoryDao.getAllSubcategories().first()
+        subcategories = categoryDao.getAllSubcategories().first(),
+        recurringRules = recurringDao.getAllRules().first()
     )
 
     suspend fun importBackupJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
@@ -611,6 +799,8 @@ class FinanceRepository(
         goalDao.clearGoals()
         debtDao.clearDebts()
         investmentDao.clearInvestments()
+        // A backup from before schedules has none; the old ones would point at the wrong accounts.
+        recurringDao.clearRules()
 
         accountDao.insertAccounts(data.accounts)
         transactionDao.insertTransactions(data.transactions)
@@ -618,6 +808,7 @@ class FinanceRepository(
         goalDao.insertGoals(data.goals)
         debtDao.insertDebts(data.debts)
         investmentDao.insertInvestments(data.investments)
+        recurringDao.insertRules(data.recurringRules)
 
         if (data.hasCategoryData) {
             categoryDao.clearCategories()
@@ -638,7 +829,8 @@ class FinanceRepository(
                 if (keepUndo) {
                     val data = readBackupData()
                     val empty = listOf(data.accounts, data.transactions, data.budgets, data.goals,
-                        data.debts, data.investments).all { it.isEmpty() } && hasDefaultCategories(data)
+                        data.debts, data.investments, data.recurringRules).all { it.isEmpty() } &&
+                        hasDefaultCategories(data)
                     if (!empty) saved = safety!!.save(data.toJsonString(), beforeClear = true)
                 }
                 clearTables()
@@ -658,6 +850,7 @@ class FinanceRepository(
         goalDao.clearGoals()
         debtDao.clearDebts()
         investmentDao.clearInvestments()
+        recurringDao.clearRules()
         // Reset categories to defaults
         categoryDao.clearCategories()
         categoryDao.clearSubcategories()
