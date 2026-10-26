@@ -1,6 +1,6 @@
 # Piso roadmap
 
-Updated 2026-10-24. Main is at `14f81c4` (B9). The latest release is v1.0.3 (2026-10-14), published by Jan, so B5 to B9 are merged but not released yet. Jan plans to install one APK once the open batches are done.
+Updated 2026-10-26. Main is at `518a591` (B10b). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
 
 ## What Piso is
 Piso is Jan's private, offline personal finance tracker for Android, covering accounts, transactions, budgets, goals, debts and investments in pesos. It's built with Kotlin, Compose and Room, and it has a PIN lock, `FLAG_SECURE` and no network access. Backups are JSON export and import, and CSV export.
@@ -10,8 +10,9 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Done since:** B7 lets Jan record goal and debt moves on a past date. B8 lets Jan take money out of a goal and correct an account balance without a fake income or expense.
 - **Also done:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
 - **Also done:** B10a lets Jan look back at past months' budgets (PR #16).
-- **In progress:** B10b lets Jan archive old accounts (database version 4). It is in review.
-- **Not released:** v1.0.3 doesn't have B5 onwards yet. Jan plans one APK after B10b.
+- **Also done:** B10b lets Jan archive old accounts (database version 4, PR #17).
+- **Next:** B11 adds recurring expenses and income (database version 5). The plan is ready and waits on Jan's go and decision D5.
+- **Not released:** v1.0.3 doesn't have B5 onwards yet.
 
 ## Status table
 
@@ -29,7 +30,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B8 | `feat/piso-b8-goal-out-adjust` | P09 take money out of a goal, plus Adjust balance (U1) | Merged, PR #14, `af59866` | [batch8](handoffs/batch8-goal-out-adjust.md) |
 | B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | Merged, PR #15, `14f81c4` | [batch9](handoffs/batch9-lock-reset.md) |
 | B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | Merged, PR #16, `bf8dac7` | [batch10](handoffs/batch10-budgets-archive.md) |
-| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | In review | [batch10](handoffs/batch10-budgets-archive.md) |
+| B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | Merged, PR #17, `518a591` | [batch10](handoffs/batch10-budgets-archive.md) |
+| B11 | `claude/project-thread-co3kep` | U6 recurring expenses and income (database version 5) | Pack ready, waiting on Jan's go and D5 | [batch11](handoffs/batch11-recurring.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -68,6 +70,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | U2 | UX | Archive or hide old accounts | Fixed in B10b (database version 4) |
 | U3 | UX | View past months' budgets | Fixed in B10a (no schema change needed) |
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
+| U6 | UX | Recurring expenses and income, so fixed costs aren't typed every time | Planned in B11 (database version 5) |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
 ## Decisions Jan owes
@@ -77,6 +80,7 @@ Each pack uses the default below unless Jan says otherwise.
 - **D2 (P24), clipboard backup export.** Settled in B5: kept and marked sensitive.
 - **D3, paste-JSON import.** Keep it or remove it? Default: keep it.
 - **D4 (U2 and U3).** Settled 2026-10-24: Jan chose both. Past budgets turned out to need no database change (B10a); the account archive does (B10b).
+- **D5 (U6), recurring entries.** Record due entries automatically, ask Jan first, or choose per schedule? Default: choose per schedule, with automatic as each schedule's default.
 
 ## Later ideas (not scheduled)
 P12 PBKDF2 for the PIN hash.
@@ -110,4 +114,4 @@ P12 PBKDF2 for the PIN hash.
 - The repo was renamed from `JanReins/Piso` to `qualified-opinion/Piso`. The package stays `com.janreins.piso`.
 - Safety copies are stored as `filesDir/backups/pre-import-<19-digit ms>.json`. The last three are kept (`BackupSafety.kt`).
 - The release key is Jan's ("Qualified Opinion, Cebu City"). Its secrets are in repo secrets and are never committed.
-- The Room database is at version 3, with schemas in `app/schemas/`.
+- The Room database is at version 4, with schemas in `app/schemas/`. B11 takes it to 5.
