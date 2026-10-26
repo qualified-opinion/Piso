@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Icon
@@ -92,6 +93,20 @@ fun MoreScreen(
                     iconTint = TealPrimary,
                     onClick = { onOpenSubScreen(MoreSubScreen.BUDGETS) },
                     testTag = "more_budgets_button"
+                )
+            }
+
+            // --- Recurring Item ---
+            item {
+                val count = uiState.recurringCount
+                MoreMenuCard(
+                    title = "Recurring",
+                    subtitle = if (count == 0) "Rent, bills and fares, recorded for you" else "$count schedule${if (count == 1) "" else "s"}",
+                    icon = Icons.Default.Repeat,
+                    iconBg = TealContainer,
+                    iconTint = TealPrimary,
+                    onClick = { onOpenSubScreen(MoreSubScreen.RECURRING) },
+                    testTag = "more_recurring_button"
                 )
             }
 

@@ -69,6 +69,8 @@ import com.janreins.piso.ui.invest.InvestScreen
 import com.janreins.piso.ui.invest.InvestViewModel
 import com.janreins.piso.ui.more.MoreScreen
 import com.janreins.piso.ui.more.MoreViewModel
+import com.janreins.piso.ui.recurring.RecurringScreen
+import com.janreins.piso.ui.recurring.RecurringViewModel
 import com.janreins.piso.ui.settings.CategoriesScreen
 import com.janreins.piso.ui.settings.SettingsScreen
 import com.janreins.piso.ui.settings.SettingsViewModel
@@ -77,6 +79,7 @@ import com.janreins.piso.ui.state.MoreSubScreen
 import com.janreins.piso.ui.theme.PisoTheme
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.util.DateUtil
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.merge
 
@@ -206,7 +209,8 @@ fun PisoApp(
     debtsViewModel: DebtsViewModel = viewModel(),
     investViewModel: InvestViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
-    moreViewModel: MoreViewModel = viewModel()
+    moreViewModel: MoreViewModel = viewModel(),
+    recurringViewModel: RecurringViewModel = viewModel()
 ) {
     val currentTab by appViewModel.currentTab.collectAsStateWithLifecycle()
     val moreSubScreen by appViewModel.moreSubScreen.collectAsStateWithLifecycle()
@@ -239,10 +243,17 @@ fun PisoApp(
             debtsViewModel.messageEvent,
             investViewModel.messageEvent,
             settingsViewModel.messageEvent,
-            moreViewModel.messageEvent
+            moreViewModel.messageEvent,
+            recurringViewModel.messageEvent
         ).collectLatest { message ->
             snackbarHostState.showSnackbar(message)
         }
+    }
+
+    // Record recurring entries that have come round: when Piso opens or is unlocked (this screen
+    // only shows then), and again after midnight while it stays open.
+    LaunchedEffect(Unit) {
+        DateUtil.currentEpochDayFlow().collect { appViewModel.postDueRecurring() }
     }
 
     val tabs = remember {
@@ -316,6 +327,10 @@ fun PisoApp(
                         viewModel = settingsViewModel,
                         onBack = { appViewModel.closeMoreSubScreen() },
                         onOpenCategories = { appViewModel.openMoreSubScreen(MoreSubScreen.CATEGORIES) }
+                    )
+                    MoreSubScreen.RECURRING -> RecurringScreen(
+                        viewModel = recurringViewModel,
+                        onBack = { appViewModel.closeMoreSubScreen() }
                     )
                     MoreSubScreen.CATEGORIES -> CategoriesScreen(
                         viewModel = settingsViewModel,

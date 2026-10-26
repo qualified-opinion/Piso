@@ -11,6 +11,7 @@ import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Goal
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.RecurringRule
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
@@ -84,6 +85,36 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
 }
 
 /**
+ * Adds recurring schedules. Existing transactions keep everything and get no schedule link.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `recurring_rules` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `type` TEXT NOT NULL,
+                `category` TEXT NOT NULL,
+                `subcategory` TEXT NOT NULL,
+                `amount` REAL NOT NULL,
+                `note` TEXT NOT NULL,
+                `accountId` INTEGER,
+                `frequency` TEXT NOT NULL,
+                `intervalCount` INTEGER NOT NULL,
+                `anchorDay` INTEGER NOT NULL,
+                `startDay` INTEGER NOT NULL,
+                `endDay` INTEGER,
+                `nextDueDay` INTEGER NOT NULL,
+                `isPaused` INTEGER NOT NULL,
+                `askFirst` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL("ALTER TABLE `transactions` ADD COLUMN `recurringId` INTEGER")
+    }
+}
+
+/**
  * Main Room Database for Piso personal money book.
  */
 @Database(
@@ -95,9 +126,10 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         Debt::class,
         Investment::class,
         UserCategory::class,
-        UserSubcategory::class
+        UserSubcategory::class,
+        RecurringRule::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -109,6 +141,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun debtDao(): DebtDao
     abstract fun investmentDao(): InvestmentDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun recurringDao(): RecurringDao
 
     companion object {
         @Volatile
@@ -121,7 +154,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "piso_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }

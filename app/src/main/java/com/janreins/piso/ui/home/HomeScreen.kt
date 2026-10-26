@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.piso.ui.components.PisoCard
 import com.janreins.piso.ui.components.ProgressBarWithPercent
+import com.janreins.piso.ui.recurring.DueRecurringCard
 import com.janreins.piso.ui.state.MainTab
 import com.janreins.piso.ui.state.MoreSubScreen
 import com.janreins.piso.ui.theme.ExpenseContainer
@@ -120,6 +121,17 @@ fun HomeScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+
+        // --- Recurring entries waiting for Jan to record or skip ---
+        if (uiState.dueRecurring.isNotEmpty()) {
+            item {
+                DueRecurringCard(
+                    due = uiState.dueRecurring,
+                    onRecord = viewModel::recordDueRecurring,
+                    onSkip = viewModel::skipDueRecurring
+                )
             }
         }
 

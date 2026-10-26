@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -126,6 +128,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _currentTab.value = MainTab.HOME
             _moreSubScreen.value = null
             showMessage("Piso has been completely reset")
+        }
+    }
+
+    // --- Recurring entries ---
+    private val recurringMutex = Mutex()
+
+    /**
+     * Records the recurring entries that have come round, and says how many. Safe to call
+     * often: dates already recorded are never recorded again.
+     */
+    fun postDueRecurring() {
+        viewModelScope.launch {
+            val made = recurringMutex.withLock { repository.postDueRecurring() }
+            if (made > 0) {
+                showMessage(if (made == 1) "1 recurring entry added" else "$made recurring entries added")
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 # Batch 11: recurring expenses (U6), database version 5
 
-Jan asked on 2026-10-26 for recurring entries, so fixed costs (rent, subscriptions, a daily fare, a yearly insurance premium) don't have to be typed in every time. Jan settled D5 on 2026-10-26 (option C, per schedule). This pack waits on Jan's go.
+Jan asked on 2026-10-26 for recurring entries, so fixed costs (rent, subscriptions, a daily fare, a yearly insurance premium) don't have to be typed in every time. Jan settled D5 on 2026-10-26 (option C, per schedule). Jan said go on 2026-10-26.
 
 - **Repo:** `qualified-opinion/Piso`
 - **Branch:** `claude/project-thread-co3kep`, from `main` at `518a591` (B10b).
@@ -13,16 +13,17 @@ Jan asked on 2026-10-26 for recurring entries, so fixed costs (rent, subscriptio
 - Pause and resume a schedule, and delete it. Deleting stops future entries only; entries already recorded stay.
 
 ## How it works
-- **When entries are made.** Piso has no network and no background jobs, so it makes due entries when the app is opened or unlocked, and at midnight while it is open (the same month-rollover flow Budgets uses, `DateUtil`). No notifications, so no new permission.
+- **When entries are made.** Piso has no network and no background jobs, so it makes due entries when the main screen shows (the app is opened or unlocked), and after midnight while it is open (`DateUtil.currentEpochDayFlow`, the same once-a-minute check Budgets uses for month-end). A snackbar says "3 recurring entries added". No notifications, so no new permission.
 - **Catch-up.** If Piso wasn't opened for a while, every missed date is caught up, each on its own date (rent for October is dated 1 October even if Jan opens the app on 5 October). A schedule is never caught up from before its start date, and never past its end date.
 - **No doubles.** Each schedule stores its next due date. Making an entry and moving the next date forward happen in one database transaction, so an entry is never made twice, even if the app is closed halfway.
 - **Month-end dates.** A monthly schedule on the 31st uses the last day of shorter months (28 or 29 February, 30 April) and goes back to the 31st after. Yearly on 29 February uses 28 February in other years.
-- **Editing.** Changes apply to future entries only. Past entries are ordinary transactions and are edited or deleted from Activity as today. Changing the start date to the future moves the next date with it.
+- **Editing.** Changes apply to future entries only. Past entries are ordinary transactions and are edited or deleted from Activity as today. If nothing has been recorded yet, a new start date simply restarts the schedule; otherwise the next date is the first one of the new schedule that isn't already handled.
+- **Pause and resume.** Dates that pass while a schedule is paused are not caught up; on resume the next date is the first one from today.
 - **Accounts.** If the schedule's account is archived (B10b), the schedule pauses and shows "Account archived". An account with a schedule can't be deleted until the schedule is moved or deleted (the dialog says why).
 - **Money.** The amount is rounded to centavos on save and on every entry (AGENTS.md).
 
 ## Decision D5: make entries automatically, or ask first?
-- **A. Automatic.** Due entries are recorded straight away, and Home shows "3 recurring entries added" with a link to them in Activity.
+- **A. Automatic.** Due entries are recorded straight away, with a "3 recurring entries added" message.
 - **B. Ask first.** Due entries wait in a "Due" list on Home. Jan taps Record (and can change the amount first) or Skip. Nothing touches balances until he does.
 - **C. Choose per schedule (Jan's choice, 2026-10-26).** Each schedule has an "Ask me before recording" switch, off by default. Fixed amounts like rent run on their own; ones that vary, like electricity, wait for Jan to confirm the real amount.
 
@@ -30,9 +31,9 @@ Under B and C, a skipped date is gone for good, and "Due" entries keep their ori
 
 ## Schema (AGENTS.md)
 - `MIGRATION_4_5` creates `recurring_rules`:
-  `id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, type TEXT NOT NULL, category TEXT NOT NULL, subcategory TEXT NOT NULL DEFAULT '', amount REAL NOT NULL, note TEXT NOT NULL DEFAULT '', accountId INTEGER, frequency TEXT NOT NULL, intervalCount INTEGER NOT NULL DEFAULT 1, anchorDay INTEGER NOT NULL, startDateMillis INTEGER NOT NULL, endDateMillis INTEGER, nextDueMillis INTEGER NOT NULL, isPaused INTEGER NOT NULL DEFAULT 0, askFirst INTEGER NOT NULL DEFAULT 0`.
-  `anchorDay` keeps the 31st after a short month.
-- `transactions` gets `recurringId INTEGER` (nullable, default null), so Activity can show a small "Recurring" tag and the "N entries added" link can find them. Deleting a schedule sets it to null on its past entries, the same way goals and debts detach (`TransactionDao.detachGoal`).
+  `id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, type TEXT NOT NULL, category TEXT NOT NULL, subcategory TEXT NOT NULL, amount REAL NOT NULL, note TEXT NOT NULL, accountId INTEGER, frequency TEXT NOT NULL, intervalCount INTEGER NOT NULL, anchorDay INTEGER NOT NULL, startDay INTEGER NOT NULL, endDay INTEGER, nextDueDay INTEGER NOT NULL, isPaused INTEGER NOT NULL, askFirst INTEGER NOT NULL`.
+  Dates are epoch days (`LocalDate.toEpochDay()`), so a schedule is about calendar days, not times; entries are dated at noon on their day. `anchorDay` keeps the 31st after a short month. A catch-up records at most 400 dates per database transaction and repeats until done.
+- `transactions` gets `recurringId INTEGER` (nullable, default null), so Activity can show a small "Recurring" tag. Deleting a schedule sets it to null on its past entries, the same way goals and debts detach (`TransactionDao.detachGoal`).
 - Commit `app/schemas/com.janreins.piso.data.local.AppDatabase/5.json`.
 - `DatabaseMigrationTest`: 4 to 5 keeps all accounts, transactions and balances, existing transactions get a null `recurringId`, and the new table is empty.
 
@@ -50,7 +51,7 @@ Under B and C, a skipped date is gone for good, and "Due" entries keep their ori
 - Deleting a schedule keeps its past entries.
 
 ## Phone checks
-- Add a daily ₱50 fare starting three days ago, and see three entries in Activity with the right dates and the wallet ₱150 lower.
+- Add a daily ₱50 fare starting two days ago, and see three entries (two days ago, yesterday and today) in Activity with the right dates and the wallet ₱150 lower.
 - Add monthly rent on the 31st, and see the next date go to 30 November, then 31 December.
 - Pause a schedule, wait a day, and see no new entry; resume it.
 - Delete a schedule and see its past entries still in Activity.

@@ -10,6 +10,7 @@ import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.local.MIGRATION_1_2
 import com.janreins.piso.data.local.MIGRATION_2_3
 import com.janreins.piso.data.local.MIGRATION_3_4
+import com.janreins.piso.data.local.MIGRATION_4_5
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.After
@@ -47,7 +48,7 @@ class DatabaseMigrationTest {
         // from JVM test resources as a test-only asset archive for MigrationTestHelper.
         val schemaAssets = temporaryFolder.newFile("schemas.zip")
         ZipOutputStream(schemaAssets.outputStream()).use { zip ->
-            for (version in 1..4) {
+            for (version in 1..5) {
                 val path = "${AppDatabase::class.java.name}/$version.json"
                 zip.putNextEntry(ZipEntry("assets/$path"))
                 checkNotNull(javaClass.classLoader!!.getResourceAsStream(path)) {
@@ -133,6 +134,58 @@ class DatabaseMigrationTest {
             assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
             assertRow(db, "SELECT name, balance, isArchived FROM accounts WHERE id = 1", "Wallet", 1234.5, 0L)
             assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
+        }
+    }
+
+    @Test
+    fun migrate4To5_keepsTransactionsAndBalancesAndAddsEmptySchedules() {
+        helper.createDatabase(dbName, 4).use { db ->
+            db.execSQL("INSERT INTO accounts VALUES (1, 'Wallet', 'Cash', 1234.5, 'Cash notes', 0)")
+            db.execSQL("INSERT INTO accounts VALUES (2, 'Old GCash', 'E-Wallet', 50.0, '', 1)")
+            db.execSQL(
+                """
+                INSERT INTO transactions
+                    (id, dateMillis, type, category, subcategory, amount, note, accountId, transferToId, goalId, goalFlow, debtId)
+                VALUES (1, 1700000000000, 'EXPENSE', 'Food', 'Groceries', 125.5, 'Market', 1, NULL, NULL, NULL, NULL)
+                """.trimIndent()
+            )
+        }
+
+        helper.runMigrationsAndValidate(dbName, 5, true, MIGRATION_4_5).use { db ->
+            assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
+            assertRow(db, "SELECT name, balance, isArchived FROM accounts WHERE id = 1", "Wallet", 1234.5, 0L)
+            assertRow(db, "SELECT name, balance, isArchived FROM accounts WHERE id = 2", "Old GCash", 50.0, 1L)
+            assertRow(
+                db, "SELECT type, category, subcategory, amount, note, accountId, recurringId FROM transactions",
+                "EXPENSE", "Food", "Groceries", 125.5, "Market", 1L, null
+            )
+            assertRow(db, "SELECT COUNT(*) FROM recurring_rules", 0L)
+            // The new table takes a schedule, and a transaction can point at it.
+            db.execSQL(
+                """
+                INSERT INTO recurring_rules
+                    (id, type, category, subcategory, amount, note, accountId, frequency, intervalCount,
+                     anchorDay, startDay, endDay, nextDueDay, isPaused, askFirst)
+                VALUES (1, 'EXPENSE', 'Housing', '', 8000.0, 'Rent', 1, 'MONTHLY', 1, 31, 20392, NULL, 20392, 0, 0)
+                """.trimIndent()
+            )
+            db.execSQL("UPDATE transactions SET recurringId = 1 WHERE id = 1")
+            assertRow(db, "SELECT recurringId FROM transactions WHERE id = 1", 1L)
+        }
+    }
+
+    @Test
+    fun migrate1To5_preservesFinancialDataAcrossAllMigrations() {
+        helper.createDatabase(dbName, 1).use { insertFinancialData(it, 1) }
+
+        helper.runMigrationsAndValidate(
+            dbName, 5, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5
+        ).use { db ->
+            assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
+            assertRow(db, "SELECT name, balance, isArchived FROM accounts WHERE id = 1", "Wallet", 1234.5, 0L)
+            assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
+            assertRow(db, "SELECT amount, recurringId FROM transactions WHERE id = 1", 125.5, null)
+            assertRow(db, "SELECT COUNT(*) FROM recurring_rules", 0L)
         }
     }
 

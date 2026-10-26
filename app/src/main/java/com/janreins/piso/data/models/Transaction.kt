@@ -20,5 +20,6 @@ data class Transaction(
     val transferToId: Long? = null, // Only for TRANSFER
     val goalId: Long? = null, // Optional link to a Goal
     val goalFlow: String? = null, // "IN" or "OUT"
-    val debtId: Long? = null // Optional link to a Debt payment
+    val debtId: Long? = null, // Optional link to a Debt payment
+    val recurringId: Long? = null // Set when a recurring schedule recorded this entry
 )

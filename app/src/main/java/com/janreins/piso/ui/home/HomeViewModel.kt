@@ -16,6 +16,8 @@ import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.state.CategorySpendingBreakdown
 import com.janreins.piso.ui.state.MonthlySummary
 import com.janreins.piso.ui.state.NetWorthSummary
+import com.janreins.piso.ui.recurring.DueRecurring
+import com.janreins.piso.ui.recurring.dueForConfirmation
 import com.janreins.piso.ui.state.SubcategorySplit
 import com.janreins.piso.util.DateUtil
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -40,6 +42,7 @@ data class HomeUiState(
     val currentMonthCategorySpending: Map<String, Double> = emptyMap(),
     val userProfile: UserProfile = UserProfile(),
     val currentMonthKey: String = DateUtil.getCurrentMonthKey(),
+    val dueRecurring: List<DueRecurring> = emptyList(),
     val isEmpty: Boolean = false
 )
 
@@ -82,6 +85,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val investments = repository.allInvestments
     private val debts = repository.allDebts
     private val currentMonthKey = DateUtil.currentMonthKeyFlow()
+    private val dueRecurring = combine(repository.allRecurringRules, DateUtil.currentEpochDayFlow()) { rules, today ->
+        dueForConfirmation(rules, today)
+    }
 
     private val netWorthSummary = combine(
         accounts,
@@ -176,8 +182,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         part1Flow,
         part2Flow,
         userProfile,
-        currentMonthKey
-    ) { p1, p2, profile, monthKey ->
+        currentMonthKey,
+        dueRecurring
+    ) { p1, p2, profile, monthKey, due ->
         HomeUiState(
             isLoading = false,
             netWorthSummary = p1.netWorthSummary,
@@ -191,9 +198,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             currentMonthCategorySpending = p2.currentMonthCategorySpending,
             userProfile = profile,
             currentMonthKey = monthKey,
+            dueRecurring = due,
             isEmpty = p1.recentTransactions.isEmpty() && p2.accounts.isEmpty()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
+
+    fun recordDueRecurring(due: DueRecurring, amount: Double) {
+        viewModelScope.launch {
+            val recorded = repository.recordDueRecurring(due.rule.id, due.dueDay, amount)
+            if (recorded) showMessage("Recorded for ${DateUtil.formatEpochDay(due.dueDay)}")
+        }
+    }
+
+    fun skipDueRecurring(due: DueRecurring) {
+        viewModelScope.launch {
+            val skipped = repository.skipDueRecurring(due.rule.id, due.dueDay)
+            if (skipped) showMessage("Skipped ${DateUtil.formatEpochDay(due.dueDay)}")
+        }
+    }
 
     fun showMessage(message: String) {
         viewModelScope.launch {
