@@ -100,26 +100,20 @@ fun ActivityScreen(
         monthTransactions.filter { it.type == "EXPENSE" && it.goalId == null && it.goalFlow == null }.sumOf { it.amount }
     }
 
-    // Filter transactions by selected month, filter type & search text
-    val filteredTransactions = remember(monthTransactions, activityFilter, searchQuery, accountsMap) {
-        val query = searchQuery.trim()
-        monthTransactions.filter { tx ->
-            val matchesType = when (activityFilter) {
-                "INCOME" -> tx.type == "INCOME"
-                "EXPENSE" -> tx.type == "EXPENSE"
-                "TRANSFER" -> tx.type == "TRANSFER"
-                else -> true
-            }
-            val matchesSearch = query.isEmpty() || listOfNotNull(
-                tx.category,
-                tx.subcategory,
-                tx.note,
-                tx.accountId?.let { accountsMap[it]?.name },
-                tx.transferToId?.let { accountsMap[it]?.name },
-                CurrencyUtil.formatInputAmount(tx.amount)
-            ).any { it.contains(query, ignoreCase = true) }
-            matchesType && matchesSearch
-        }
+    // A search looks through every month unless Jan narrows it to the month on screen.
+    var searchAllMonths by rememberSaveable { mutableStateOf(true) }
+    val isSearchingAllMonths = searchQuery.isNotBlank() && searchAllMonths
+
+    // Filter transactions by month (unless searching all months), filter type & search text
+    val filteredTransactions = remember(transactions, selectedMonthKey, activityFilter, searchQuery, searchAllMonths, accountsMap) {
+        filterActivity(
+            transactions = transactions,
+            monthKey = selectedMonthKey,
+            filter = activityFilter,
+            query = searchQuery,
+            allMonths = searchAllMonths,
+            accountNames = accountsMap.mapValues { it.value.name }
+        )
     }
 
     Scaffold(
@@ -200,7 +194,13 @@ fun ActivityScreen(
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val filters = listOf("ALL" to "All", "INCOME" to "Income", "EXPENSE" to "Expense", "TRANSFER" to "Transfers")
+                val filters = listOf(
+                    "ALL" to "All",
+                    "INCOME" to "Income",
+                    "EXPENSE" to "Expense",
+                    "TRANSFER" to "Transfers",
+                    "ADJUSTMENT" to "Adjustments"
+                )
                 items(filters) { (key, label) ->
                     val isSelected = activityFilter == key
                     FilterChip(
@@ -241,8 +241,45 @@ fun ActivityScreen(
                     .testTag("activity_search_input")
             )
 
-            // --- Month Totals ---
-            Row(
+            // --- Where the search looks ---
+            if (searchQuery.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = searchAllMonths,
+                        onClick = { searchAllMonths = true },
+                        label = { Text("All months") },
+                        modifier = Modifier.testTag("activity_search_all_months_chip")
+                    )
+                    FilterChip(
+                        selected = !searchAllMonths,
+                        onClick = { searchAllMonths = false },
+                        label = { Text("Only ${DateUtil.getMonthDisplayName(selectedMonthKey)}") },
+                        modifier = Modifier.testTag("activity_search_this_month_chip")
+                    )
+                }
+            }
+
+            // --- Month Totals (a search across all months shows its match count instead) ---
+            if (isSearchingAllMonths) {
+                Text(
+                    text = when (filteredTransactions.size) {
+                        0 -> "No matches in any month"
+                        1 -> "1 match across all months"
+                        else -> "${filteredTransactions.size} matches across all months, newest first"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("activity_search_match_count")
+                )
+            } else Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -269,7 +306,8 @@ fun ActivityScreen(
                     PisoEmptyState(
                         message = when {
                             transactions.isEmpty() -> "No transactions yet – add your first one!"
-                            searchQuery.isNotBlank() -> "No transactions match \"${searchQuery.trim()}\"."
+                            isSearchingAllMonths -> "No transactions in any month match \"${searchQuery.trim()}\"."
+                            searchQuery.isNotBlank() -> "No transactions in ${DateUtil.getMonthDisplayName(selectedMonthKey)} match \"${searchQuery.trim()}\"."
                             monthTransactions.isEmpty() -> "No transactions in ${DateUtil.getMonthDisplayName(selectedMonthKey)}."
                             else -> "Nothing here for this filter."
                         },
@@ -516,5 +554,38 @@ private fun MonthTotal(
             color = color,
             maxLines = 1
         )
+    }
+}
+
+/**
+ * The transactions Activity lists: those of [monthKey] (or of every month when searching with
+ * [allMonths] on), of the chosen type [filter], matching [query] in the category, subcategory,
+ * note, either account name or the amount. Keeps the newest-first order it is given.
+ */
+internal fun filterActivity(
+    transactions: List<Transaction>,
+    monthKey: String,
+    filter: String,
+    query: String,
+    allMonths: Boolean,
+    accountNames: Map<Long, String>
+): List<Transaction> {
+    val trimmed = query.trim()
+    val everyMonth = allMonths && trimmed.isNotEmpty()
+    return transactions.filter { tx ->
+        val inMonth = everyMonth || DateUtil.getMonthKey(tx.dateMillis) == monthKey
+        val matchesType = when (filter) {
+            "INCOME", "EXPENSE", "TRANSFER", "ADJUSTMENT" -> tx.type == filter
+            else -> true
+        }
+        val matchesSearch = trimmed.isEmpty() || listOfNotNull(
+            tx.category,
+            tx.subcategory,
+            tx.note,
+            tx.accountId?.let { accountNames[it] },
+            tx.transferToId?.let { accountNames[it] },
+            CurrencyUtil.formatInputAmount(tx.amount)
+        ).any { it.contains(trimmed, ignoreCase = true) }
+        inMonth && matchesType && matchesSearch
     }
 }

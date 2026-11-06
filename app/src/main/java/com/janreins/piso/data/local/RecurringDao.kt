@@ -27,6 +27,19 @@ interface RecurringDao {
     @Query("UPDATE recurring_rules SET isPaused = 1 WHERE accountId = :accountId")
     suspend fun pauseRulesForAccount(accountId: Long)
 
+    // A renamed category or subcategory keeps its schedules, so later entries land under the new name.
+    @Query("UPDATE recurring_rules SET category = :newName WHERE category = :oldName AND type = :type")
+    suspend fun renameCategory(oldName: String, newName: String, type: String)
+
+    @Query("UPDATE recurring_rules SET subcategory = :newSubName WHERE category = :parentName AND subcategory = :oldSubName AND type = :type")
+    suspend fun renameSubcategory(parentName: String, oldSubName: String, newSubName: String, type: String)
+
+    @Query("SELECT COUNT(*) FROM recurring_rules WHERE category = :categoryName AND type = :type")
+    suspend fun countRulesForCategory(categoryName: String, type: String): Int
+
+    @Query("SELECT COUNT(*) FROM recurring_rules WHERE category = :parentName AND subcategory = :subcategoryName AND type = :type")
+    suspend fun countRulesForSubcategory(parentName: String, subcategoryName: String, type: String): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRule(rule: RecurringRule): Long
 

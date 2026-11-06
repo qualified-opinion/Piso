@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.janreins.piso.data.local.AppDatabase
+import com.janreins.piso.data.local.BackupReminderStore
 import com.janreins.piso.data.local.ThemeMode
 import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
@@ -125,6 +126,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repository.clearAllData(keepUndo = false)
             withContext(Dispatchers.IO) { backupSafety.deleteAllBestEffort() }
             profileManager.clearProfile()
+            BackupReminderStore.getInstance(getApplication()).clear()
             _currentTab.value = MainTab.HOME
             _moreSubScreen.value = null
             showMessage("Piso has been completely reset")

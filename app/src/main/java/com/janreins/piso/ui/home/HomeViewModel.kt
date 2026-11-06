@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.janreins.piso.data.local.AppDatabase
+import com.janreins.piso.data.local.BackupReminderStore
+import com.janreins.piso.data.local.BackupStatus
+import com.janreins.piso.data.local.backupReminderDue
 import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.data.models.Account
@@ -43,6 +46,8 @@ data class HomeUiState(
     val userProfile: UserProfile = UserProfile(),
     val currentMonthKey: String = DateUtil.getCurrentMonthKey(),
     val dueRecurring: List<DueRecurring> = emptyList(),
+    val showBackupReminder: Boolean = false,
+    val backupStatus: BackupStatus = BackupStatus(),
     val isEmpty: Boolean = false
 )
 
@@ -65,6 +70,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: FinanceRepository
     private val profileManager = UserProfileManager.getInstance(application)
+    private val backupReminder = BackupReminderStore.getInstance(application)
 
     private val _messageEvent = MutableSharedFlow<String>()
     val messageEvent: SharedFlow<String> = _messageEvent.asSharedFlow()
@@ -88,6 +94,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val dueRecurring = combine(repository.allRecurringRules, DateUtil.currentEpochDayFlow()) { rules, today ->
         dueForConfirmation(rules, today)
     }
+
+    // Checked again each day and whenever the backup status or the entries change.
+    private val backupReminderState = combine(
+        transactions,
+        backupReminder.status,
+        DateUtil.currentEpochDayFlow()
+    ) { txList, status, _ ->
+        val oldest = txList.minOfOrNull { it.dateMillis }
+        status to backupReminderDue(status, oldest, System.currentTimeMillis())
+    }
+
+    private val homeExtras = combine(dueRecurring, backupReminderState) { due, backup -> due to backup }
 
     private val netWorthSummary = combine(
         accounts,
@@ -183,8 +201,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         part2Flow,
         userProfile,
         currentMonthKey,
-        dueRecurring
-    ) { p1, p2, profile, monthKey, due ->
+        homeExtras
+    ) { p1, p2, profile, monthKey, (due, backup) ->
         HomeUiState(
             isLoading = false,
             netWorthSummary = p1.netWorthSummary,
@@ -199,6 +217,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             userProfile = profile,
             currentMonthKey = monthKey,
             dueRecurring = due,
+            showBackupReminder = backup.second,
+            backupStatus = backup.first,
             isEmpty = p1.recentTransactions.isEmpty() && p2.accounts.isEmpty()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
@@ -215,6 +235,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val skipped = repository.skipDueRecurring(due.rule.id, due.dueDay)
             if (skipped) showMessage("Skipped ${DateUtil.formatEpochDay(due.dueDay)}")
         }
+    }
+
+    /** "Later" on the backup reminder: hide it for a week. */
+    fun snoozeBackupReminder() {
+        backupReminder.snooze()
     }
 
     fun showMessage(message: String) {

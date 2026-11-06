@@ -8,6 +8,8 @@ import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.BackupData
 import com.janreins.piso.data.models.RecurringRule
 import com.janreins.piso.data.models.Transaction
+import com.janreins.piso.data.models.UserCategory
+import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.home.summarizeMonth
@@ -270,5 +272,65 @@ class RecurringRepositoryTest {
         val root = JSONObject(repository.exportBackupJson())
         root.getJSONArray("recurringRules").getJSONObject(0).put("frequency", "HOURLY")
         assertNull(BackupData.fromJsonString(root.toString()))
+    }
+
+    // --- Categories used by schedules (B13) ---
+
+    @Test
+    fun renamingACategoryMovesItsSchedulesAndTheirNextEntries() = runBlocking {
+        val bills = UserCategory(name = "Bills", kind = "EXPENSE")
+        val billsId = repository.insertCategory(bills)
+        repository.insertCategory(UserCategory(name = "Bills", kind = "INCOME"))
+        val expenseId = repository.insertRecurringRule(rule(start = oct1 + 5).copy(category = "Bills"))
+        val incomeId = repository.insertRecurringRule(rule(start = oct1 + 5, type = "INCOME").copy(category = "Bills"))
+
+        repository.updateCategoryName(bills.copy(id = billsId), "Utilities")
+
+        assertEquals("Utilities", storedRule(expenseId).category)
+        // The income category with the same name is a different category.
+        assertEquals("Bills", storedRule(incomeId).category)
+        repository.postDueRecurring(today = oct1 + 5)
+        assertEquals("Utilities", transactions().single { it.recurringId == expenseId }.category)
+    }
+
+    @Test
+    fun renamingASubcategoryMovesItsSchedules() = runBlocking {
+        val sub = UserSubcategory(parentCategoryName = "Bills", name = "Power", parentKind = "EXPENSE")
+        val subId = repository.insertSubcategory(sub)
+        val id = repository.insertRecurringRule(rule().copy(category = "Bills", subcategory = "Power"))
+        val other = repository.insertRecurringRule(rule().copy(category = "Food", subcategory = "Power"))
+
+        repository.updateSubcategoryName(sub.copy(id = subId), "Electricity")
+
+        assertEquals("Electricity", storedRule(id).subcategory)
+        assertEquals("Power", storedRule(other).subcategory)
+    }
+
+    @Test
+    fun deletingACategoryOnlyASchedulesUsesArchivesIt() = runBlocking {
+        val bills = UserCategory(name = "Bills", kind = "EXPENSE")
+        val billsId = repository.insertCategory(bills)
+        val unused = UserCategory(name = "Hobbies", kind = "EXPENSE")
+        val unusedId = repository.insertCategory(unused)
+        repository.insertRecurringRule(rule(start = oct1 + 5).copy(category = "Bills"))
+        assertTrue(transactions().isEmpty())
+
+        repository.deleteCategory(bills.copy(id = billsId))
+        repository.deleteCategory(unused.copy(id = unusedId))
+
+        val categories = repository.allCategories.first()
+        assertTrue(categories.single { it.id == billsId }.isArchived)
+        assertTrue(categories.none { it.id == unusedId })
+    }
+
+    @Test
+    fun deletingASubcategoryOnlyASchedulesUsesArchivesIt() = runBlocking {
+        val sub = UserSubcategory(parentCategoryName = "Bills", name = "Power", parentKind = "EXPENSE")
+        val subId = repository.insertSubcategory(sub)
+        repository.insertRecurringRule(rule(start = oct1 + 5).copy(category = "Bills", subcategory = "Power"))
+
+        repository.deleteSubcategory(sub.copy(id = subId))
+
+        assertTrue(repository.allSubcategories.first().single { it.id == subId }.isArchived)
     }
 }
