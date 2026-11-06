@@ -284,6 +284,24 @@ fun HomeScreen(
                         )
                     }
                 }
+
+                // Opens the year overview: every month's income, spending and savings
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = { onNavigateToSubScreen(MoreSubScreen.OVERVIEW) },
+                        modifier = Modifier.testTag("home_year_overview_button")
+                    ) {
+                        Text("See the whole year")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(16.dp)
+                        )
+                    }
+                }
             }
         }
 

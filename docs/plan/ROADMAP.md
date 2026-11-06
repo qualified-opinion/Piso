@@ -1,6 +1,6 @@
 # Piso roadmap
 
-Updated 2026-11-06. Main is at `19febb7` (B12). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
+Updated 2026-11-06. Main is at `e62b9da` (B13). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
 
 ## What Piso is
 Piso is Jan's private, offline personal finance tracker for Android, covering accounts, transactions, budgets, goals, debts and investments in pesos. It's built with Kotlin, Compose and Room, and it has a PIN lock, `FLAG_SECURE` and no network access. Backups are JSON export and import, and CSV export.
@@ -13,7 +13,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Also done:** B10b lets Jan archive old accounts (database version 4, PR #17).
 - **Also done:** B11 adds recurring expenses and income (database version 5, D5 settled: per schedule, PR #18).
 - **Also done:** B12 adds a budget history page comparing budget with spending per category over the last 3, 6 or 12 months (no database change, PR #19).
-- **In progress:** B13 fixes category renames for recurring schedules, adds a backup reminder and lets Activity search every month (no database change). It is in review.
+- **Also done:** B13 fixes category renames for recurring schedules, adds a backup reminder and lets Activity search every month (no database change, PR #20).
+- **In progress:** B14 adds a year overview: income, spending and amount saved per month, like a monthly P&L (no database change). It is in review.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet.
 
 ## Status table
@@ -35,7 +36,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | Merged, PR #17, `518a591` | [batch10](handoffs/batch10-budgets-archive.md) |
 | B11 | `claude/project-thread-co3kep` | U6 recurring expenses and income (database version 5) | Merged, PR #18, `23daa18` | [batch11](handoffs/batch11-recurring.md) |
 | B12 | `claude/project-thread-m9f8cl` | U7 budget vs spending history (no schema change) | Merged, PR #19, `19febb7` | [batch12](handoffs/batch12-budget-history.md) |
-| B13 | `claude/project-thread-6gsfiw` | U8 category rename reaches schedules, U9 backup reminder, U10 search all months (no schema change) | In review | [batch13](handoffs/batch13-small-fixes.md) |
+| B13 | `claude/project-thread-6gsfiw` | U8 category rename reaches schedules, U9 backup reminder, U10 search all months (no schema change) | Merged, PR #20, `e62b9da` | [batch13](handoffs/batch13-small-fixes.md) |
+| B14 | `claude/project-thread-vkg33n` | U11 year overview: income, spending and savings per month (no schema change) | In review | [batch14](handoffs/batch14-year-overview.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -76,9 +78,10 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)), review 2 (2026
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
 | U6 | UX | Recurring expenses and income, so fixed costs aren't typed every time | Fixed in B11 (database version 5) |
 | U7 | UX | See budget against spending over past months, to find overspending | Fixed in B12 (no schema change) |
-| U8 | P2 | Renaming a category doesn't reach recurring schedules, so their entries miss the renamed budget; deleting a category only a schedule uses removes it | B13, in review |
-| U9 | UX | Backup reminder: show the last backup file date and remind on Home after 30 days | B13, in review |
-| U10 | UX | Activity search only covers the month on screen; no Adjustments filter | B13, in review |
+| U8 | P2 | Renaming a category doesn't reach recurring schedules, so their entries miss the renamed budget; deleting a category only a schedule uses removes it | Fixed in B13 |
+| U9 | UX | Backup reminder: show the last backup file date and remind on Home after 30 days | Fixed in B13 |
+| U10 | UX | Activity search only covers the month on screen; no Adjustments filter | Fixed in B13 |
+| U11 | UX | Year overview: income, spending and amount saved per month, like a monthly P&L | B14, in review |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
 ## Decisions Jan owes
@@ -95,7 +98,6 @@ P12 PBKDF2 for the PIN hash.
 
 From review 3 (2026-11-06), for Jan to pick later:
 - Credit card purchases that count as spending and raise what's owed on the card (M, likely a database change).
-- Monthly overview: income, spending and amount saved per month for a year (S to M, no database change).
 - Fingerprint unlock (M, lock code, needs its own pack and tests).
 - Investments bought or sold from an account, without counting as spending (M, database change).
 - Password-protected backup file (M).
@@ -115,6 +117,7 @@ From review 3 (2026-11-06), for Jan to pick later:
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B14 (once released): see the phone checks in [batch14](handoffs/batch14-year-overview.md).
 - After B13 (once released): see the phone checks in [batch13](handoffs/batch13-small-fixes.md).
 - After B12 (once released): open Budgets, tap History, and see the category you overspent most at the top in red with the right amount; switch between 3, 6 and 12 months; see unbudgeted spending listed at the bottom; system back returns to Budgets.
 - After B11 (once released): add a daily ₱50 fare starting two days ago and see three entries (two days ago, yesterday and today) in Activity with the right dates and the wallet ₱150 lower; add monthly rent on the 31st and see the next date go to 30 November; turn on "Ask me before recording" for electricity and see it wait on Home until you tap Record; delete a schedule and see its past entries stay.
