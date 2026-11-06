@@ -4,6 +4,8 @@ import androidx.room.withTransaction
 import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.BackupData
+import com.janreins.piso.data.models.CARD_PAYMENT_CATEGORY
+import com.janreins.piso.data.models.DEBT_FLOW_CHARGE
 import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Debt
@@ -13,6 +15,7 @@ import com.janreins.piso.data.models.RecurringRule
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
+import com.janreins.piso.data.models.isCardPurchase
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.CurrencyUtil.roundCents
 import com.janreins.piso.util.DateUtil
@@ -280,7 +283,8 @@ class FinanceRepository(
             val stored = transactionDao.getTransactionById(oldTx.id) ?: return@withTransaction
             revertTransactionBalance(stored)
             // Cap against the restored debt balance so the saved payment can be fully reverted.
-            val debt = newTx.debtId?.let { debtDao.getDebtById(it) }
+            // A card purchase adds to what's owed, so it has nothing to cap against.
+            val debt = newTx.debtId?.takeIf { !newTx.isCardPurchase }?.let { debtDao.getDebtById(it) }
             val amount = debt?.let { minOf(newTx.amount, it.remainingAmount) } ?: newTx.amount
             val normalized = newTx.copy(id = stored.id, amount = roundCents(amount))
             applyTransactionBalance(normalized)
@@ -326,9 +330,12 @@ class FinanceRepository(
 
         // Debt payment: reduces what's owed, never below zero. Reverting adds the payment back
         // without capping at the original principal (the balance may include interest or fees).
+        // A card purchase works the other way: it adds to what's owed, and removing it takes
+        // that off again (never below zero, as a payment made since may have cleared it).
         tx.debtId?.let { debtId ->
             val debt = debtDao.getDebtById(debtId) ?: return@let
-            val remaining = if (sign > 0) {
+            val lowersDebt = (sign > 0) != tx.isCardPurchase
+            val remaining = if (lowersDebt) {
                 max(0.0, debt.remainingAmount - amount)
             } else {
                 debt.remainingAmount + amount
@@ -489,10 +496,12 @@ class FinanceRepository(
                 debtDao.updateDebt(debt.copy(remainingAmount = roundCents(max(0.0, debt.remainingAmount - applied))))
                 return@withTransaction
             }
+            // On a card whose purchases are recorded, the purchases were the spending, so the
+            // payment only moves money from the account to the card (a one-sided transfer).
             val tx = Transaction(
                 dateMillis = dateMillis,
-                type = "EXPENSE",
-                category = "Debt",
+                type = if (debt.tracksPurchases) "TRANSFER" else "EXPENSE",
+                category = if (debt.tracksPurchases) CARD_PAYMENT_CATEGORY else "Debt",
                 subcategory = "",
                 amount = applied,
                 note = "Payment for ${debt.name}",
@@ -502,6 +511,38 @@ class FinanceRepository(
             applyTransactionBalance(tx)
             transactionDao.insertTransaction(tx)
         }
+    }
+
+    /**
+     * Records a purchase of [amount] made on credit card [debtId]. It counts as spending in
+     * [category] on [dateMillis] and adds to what's owed on the card; no account changes
+     * until the card is paid. Returns false if the card is gone or doesn't track purchases.
+     */
+    suspend fun recordCardPurchase(
+        debtId: Long,
+        amount: Double,
+        category: String,
+        subcategory: String = "",
+        note: String = "",
+        dateMillis: Long = System.currentTimeMillis()
+    ): Boolean = database.withTransaction {
+        val debt = debtDao.getDebtById(debtId)
+        val rounded = roundCents(amount)
+        if (debt == null || !debt.tracksPurchases || rounded <= 0.0) return@withTransaction false
+        val tx = Transaction(
+            dateMillis = dateMillis,
+            type = "EXPENSE",
+            category = category.trim().ifBlank { "Other" },
+            subcategory = subcategory.trim(),
+            amount = rounded,
+            note = note.trim(),
+            accountId = null,
+            debtId = debtId,
+            debtFlow = DEBT_FLOW_CHARGE
+        )
+        applyTransactionBalance(tx)
+        transactionDao.insertTransaction(tx)
+        true
     }
 
     // --- Budgets ---

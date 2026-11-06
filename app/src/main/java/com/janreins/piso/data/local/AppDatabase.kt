@@ -115,6 +115,17 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
 }
 
 /**
+ * Adds credit card purchases. Existing debts don't track purchases, and every existing
+ * debt-linked entry stays a payment, so no balance or total changes.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `debts` ADD COLUMN `tracksPurchases` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `transactions` ADD COLUMN `debtFlow` TEXT")
+    }
+}
+
+/**
  * Main Room Database for Piso personal money book.
  */
 @Database(
@@ -129,7 +140,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         UserSubcategory::class,
         RecurringRule::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -154,7 +165,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "piso_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { INSTANCE = it }
             }

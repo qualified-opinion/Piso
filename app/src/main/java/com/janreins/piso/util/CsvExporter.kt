@@ -2,6 +2,7 @@ package com.janreins.piso.util
 
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Transaction
+import com.janreins.piso.data.models.isCardPurchase
 import java.util.Locale
 
 /**
@@ -33,6 +34,7 @@ object CsvExporter {
                 }
                 val linkedTo = when {
                     tx.goalId != null || tx.goalFlow != null -> "Goal"
+                    tx.isCardPurchase -> "Card purchase"
                     tx.debtId != null -> "Debt"
                     else -> ""
                 }

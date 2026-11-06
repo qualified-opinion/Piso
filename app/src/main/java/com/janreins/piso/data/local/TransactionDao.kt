@@ -28,7 +28,7 @@ interface TransactionDao {
     @Query("UPDATE transactions SET goalId = NULL WHERE goalId = :goalId")
     suspend fun detachGoal(goalId: Long)
 
-    @Query("UPDATE transactions SET debtId = NULL WHERE debtId = :debtId")
+    @Query("UPDATE transactions SET debtId = NULL, debtFlow = NULL WHERE debtId = :debtId")
     suspend fun detachDebt(debtId: Long)
 
     @Query("UPDATE transactions SET recurringId = NULL WHERE recurringId = :ruleId")

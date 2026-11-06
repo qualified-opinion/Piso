@@ -714,7 +714,7 @@ fun HomeScreen(
                                     )
                                 )
                                 Text(
-                                    text = "of ${CurrencyUtil.formatPeso(debt.originalAmount)}",
+                                    text = if (debt.tracksPurchases) "owed" else "of ${CurrencyUtil.formatPeso(debt.originalAmount)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

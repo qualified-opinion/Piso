@@ -11,6 +11,7 @@ import com.janreins.piso.data.local.MIGRATION_1_2
 import com.janreins.piso.data.local.MIGRATION_2_3
 import com.janreins.piso.data.local.MIGRATION_3_4
 import com.janreins.piso.data.local.MIGRATION_4_5
+import com.janreins.piso.data.local.MIGRATION_5_6
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.After
@@ -48,7 +49,7 @@ class DatabaseMigrationTest {
         // from JVM test resources as a test-only asset archive for MigrationTestHelper.
         val schemaAssets = temporaryFolder.newFile("schemas.zip")
         ZipOutputStream(schemaAssets.outputStream()).use { zip ->
-            for (version in 1..5) {
+            for (version in 1..6) {
                 val path = "${AppDatabase::class.java.name}/$version.json"
                 zip.putNextEntry(ZipEntry("assets/$path"))
                 checkNotNull(javaClass.classLoader!!.getResourceAsStream(path)) {
@@ -186,6 +187,60 @@ class DatabaseMigrationTest {
             assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
             assertRow(db, "SELECT amount, recurringId FROM transactions WHERE id = 1", 125.5, null)
             assertRow(db, "SELECT COUNT(*) FROM recurring_rules", 0L)
+        }
+    }
+
+    @Test
+    fun migrate5To6_keepsDebtsAndPaymentsAndAddsCardPurchases() {
+        helper.createDatabase(dbName, 5).use { db ->
+            db.execSQL("INSERT INTO accounts VALUES (1, 'Wallet', 'Cash', 1234.5, 'Cash notes', 0)")
+            db.execSQL("INSERT INTO debts VALUES (1, 'BPI Card', 'Credit Card', 20000.0, 4500.0, 'Card notes', NULL)")
+            db.execSQL(
+                """
+                INSERT INTO transactions
+                    (id, dateMillis, type, category, subcategory, amount, note, accountId, transferToId, goalId, goalFlow, debtId, recurringId)
+                VALUES (1, 1700000000000, 'EXPENSE', 'Debt', '', 500.0, 'Payment for BPI Card', 1, NULL, NULL, NULL, 1, NULL)
+                """.trimIndent()
+            )
+        }
+
+        helper.runMigrationsAndValidate(dbName, 6, true, MIGRATION_5_6).use { db ->
+            assertRow(db, "SELECT name, balance FROM accounts WHERE id = 1", "Wallet", 1234.5)
+            // Existing debts don't track purchases, and the old payment stays a payment.
+            assertRow(
+                db, "SELECT name, kind, originalAmount, remainingAmount, notes, dueMillis, tracksPurchases FROM debts",
+                "BPI Card", "Credit Card", 20000.0, 4500.0, "Card notes", null, 0L
+            )
+            assertRow(
+                db, "SELECT type, category, amount, accountId, debtId, debtFlow FROM transactions WHERE id = 1",
+                "EXPENSE", "Debt", 500.0, 1L, 1L, null
+            )
+            // The new columns take a tracking card and a purchase on it.
+            db.execSQL("UPDATE debts SET tracksPurchases = 1 WHERE id = 1")
+            db.execSQL(
+                """
+                INSERT INTO transactions
+                    (id, dateMillis, type, category, subcategory, amount, note, accountId, transferToId, goalId, goalFlow, debtId, recurringId, debtFlow)
+                VALUES (2, 1700000000001, 'EXPENSE', 'Food', '', 250.0, '', NULL, NULL, NULL, NULL, 1, NULL, 'CHARGE')
+                """.trimIndent()
+            )
+            assertRow(db, "SELECT tracksPurchases FROM debts WHERE id = 1", 1L)
+            assertRow(db, "SELECT debtFlow FROM transactions WHERE id = 2", "CHARGE")
+        }
+    }
+
+    @Test
+    fun migrate1To6_preservesFinancialDataAcrossAllMigrations() {
+        helper.createDatabase(dbName, 1).use { insertFinancialData(it, 1) }
+
+        helper.runMigrationsAndValidate(
+            dbName, 6, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6
+        ).use { db ->
+            assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
+            assertRow(db, "SELECT name, balance, isArchived FROM accounts WHERE id = 1", "Wallet", 1234.5, 0L)
+            assertRow(db, "SELECT name, remainingAmount, tracksPurchases FROM debts WHERE id = 1", "Loan", 1500.0, 0L)
+            assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
+            assertRow(db, "SELECT amount, debtId, debtFlow FROM transactions WHERE id = 1", 125.5, 1L, null)
         }
     }
 

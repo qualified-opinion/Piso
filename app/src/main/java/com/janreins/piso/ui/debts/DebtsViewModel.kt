@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Debt
+import com.janreins.piso.data.models.UserCategory
+import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.FinanceRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,6 +23,8 @@ data class DebtsUiState(
     val debts: List<Debt> = emptyList(),
     val openDebts: List<Debt> = emptyList(),
     val accounts: List<Account> = emptyList(),
+    val categories: List<UserCategory> = emptyList(),
+    val subcategories: List<UserSubcategory> = emptyList(),
     val isEmpty: Boolean = false
 )
 
@@ -48,13 +52,17 @@ class DebtsViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<DebtsUiState> = combine(
         debts,
         openDebts,
-        accounts
-    ) { allD, openD, accs ->
+        accounts,
+        repository.allCategories,
+        repository.allSubcategories
+    ) { allD, openD, accs, cats, subs ->
         DebtsUiState(
             isLoading = false,
             debts = allD,
             openDebts = openD,
             accounts = accs,
+            categories = cats,
+            subcategories = subs,
             isEmpty = allD.isEmpty()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DebtsUiState())
@@ -81,6 +89,20 @@ class DebtsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.recordDebtPayment(debtId, amount, fromAccountId, dateMillis)
             showMessage("Debt payment recorded")
+        }
+    }
+
+    fun recordCardPurchase(
+        debtId: Long,
+        amount: Double,
+        category: String,
+        subcategory: String,
+        note: String,
+        dateMillis: Long
+    ) {
+        viewModelScope.launch {
+            val saved = repository.recordCardPurchase(debtId, amount, category, subcategory, note, dateMillis)
+            showMessage(if (saved) "Card purchase recorded" else "Couldn't record the purchase")
         }
     }
 

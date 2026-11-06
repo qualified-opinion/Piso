@@ -57,6 +57,7 @@ data class BackupData(
             if (tx.goalFlow != null) obj.put("goalFlow", tx.goalFlow)
             if (tx.debtId != null) obj.put("debtId", tx.debtId)
             if (tx.recurringId != null) obj.put("recurringId", tx.recurringId)
+            if (tx.debtFlow != null) obj.put("debtFlow", tx.debtFlow)
             txArr.put(obj)
         }
         root.put("transactions", txArr)
@@ -96,6 +97,7 @@ data class BackupData(
             obj.put("remainingAmount", d.remainingAmount)
             obj.put("notes", d.notes)
             if (d.dueMillis != null) obj.put("dueMillis", d.dueMillis)
+            obj.put("tracksPurchases", d.tracksPurchases)
             debtArr.put(obj)
         }
         root.put("debts", debtArr)
@@ -224,7 +226,9 @@ data class BackupData(
                             goalId = if (obj.has("goalId")) obj.getLong("goalId") else null,
                             goalFlow = if (obj.has("goalFlow")) obj.getString("goalFlow") else null,
                             debtId = if (obj.has("debtId")) obj.getLong("debtId") else null,
-                            recurringId = if (obj.has("recurringId")) obj.getLong("recurringId") else null
+                            recurringId = if (obj.has("recurringId")) obj.getLong("recurringId") else null,
+                            // Backups from before card purchases have none: every debt entry is a payment.
+                            debtFlow = if (obj.has("debtFlow")) obj.getString("debtFlow") else null
                         )
                     )
                 }
@@ -272,7 +276,8 @@ data class BackupData(
                             originalAmount = obj.getDouble("originalAmount"),
                             remainingAmount = obj.optDouble("remainingAmount", 0.0),
                             notes = obj.optString("notes", ""),
-                            dueMillis = if (obj.has("dueMillis")) obj.getLong("dueMillis") else null
+                            dueMillis = if (obj.has("dueMillis")) obj.getLong("dueMillis") else null,
+                            tracksPurchases = obj.optBoolean("tracksPurchases", false)
                         )
                     )
                 }
