@@ -24,7 +24,10 @@ data class Transaction(
     val recurringId: Long? = null, // Set when a recurring schedule recorded this entry
     // With debtId: DEBT_FLOW_CHARGE is a purchase on a credit card (adds to what's owed).
     // Null is a payment (lowers what's owed), as every debt-linked entry was before.
-    val debtFlow: String? = null
+    val debtFlow: String? = null,
+    // An investment bought (accountId set: money out of the account) or sold (transferToId set:
+    // money into the account). Saved as a TRANSFER, so it's never income or spending.
+    val investmentId: Long? = null
 )
 
 /** [Transaction.debtFlow] of a purchase made on a credit card. */
@@ -32,5 +35,11 @@ const val DEBT_FLOW_CHARGE = "CHARGE"
 
 /** Category given to a payment on a card that tracks its purchases (it isn't spending). */
 const val CARD_PAYMENT_CATEGORY = "Card payment"
+
+/** Category of a purchase or sale of an investment. */
+const val INVESTMENT_CATEGORY = "Investment"
+
+val Transaction.isInvestmentBuy: Boolean get() = investmentId != null && accountId != null && transferToId == null
+val Transaction.isInvestmentSale: Boolean get() = investmentId != null && transferToId != null && accountId == null
 
 val Transaction.isCardPurchase: Boolean get() = debtId != null && debtFlow == DEBT_FLOW_CHARGE

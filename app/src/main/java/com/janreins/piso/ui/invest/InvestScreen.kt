@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CurrencyBitcoin
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +69,8 @@ fun InvestScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var investmentToEdit by remember { mutableStateOf<Investment?>(null) }
     var investmentToDelete by remember { mutableStateOf<Investment?>(null) }
+    // The investment being bought (false) or sold (true)
+    var investmentMove by remember { mutableStateOf<Pair<Investment, Boolean>?>(null) }
 
     Scaffold(
         modifier = modifier.testTag("invest_screen"),
@@ -244,6 +247,33 @@ fun InvestScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+
+                            // Buy more from an account, or sell into one: never spending or income
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { investmentMove = item to false },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("invest_buy_button"),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Buy more")
+                                }
+                                OutlinedButton(
+                                    onClick = { investmentMove = item to true },
+                                    enabled = item.currentValue > 0.0,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("invest_sell_button"),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Sell")
+                                }
+                            }
                         }
                     }
                     item {
@@ -257,9 +287,14 @@ fun InvestScreen(
     // --- Add Investment Dialog ---
     if (showAddDialog) {
         InvestDialog(
+            accounts = uiState.accounts,
             onDismiss = { showAddDialog = false },
             onSave = { newInvest ->
                 viewModel.addInvestment(newInvest)
+                showAddDialog = false
+            },
+            onSaveFromAccount = { newInvest, accountId, dateMillis ->
+                viewModel.addInvestmentFromAccount(newInvest, accountId, dateMillis)
                 showAddDialog = false
             }
         )
@@ -277,11 +312,29 @@ fun InvestScreen(
         )
     }
 
+    // --- Buy or Sell Dialog ---
+    investmentMove?.let { (inv, isSale) ->
+        InvestMoveDialog(
+            investment = inv,
+            isSale = isSale,
+            accounts = uiState.accounts,
+            onDismiss = { investmentMove = null },
+            onConfirm = { amount, accountId, dateMillis, note ->
+                if (isSale) {
+                    viewModel.sellInvestment(inv.id, amount, accountId, dateMillis, note)
+                } else {
+                    viewModel.buyInvestment(inv.id, amount, accountId, dateMillis, note)
+                }
+                investmentMove = null
+            }
+        )
+    }
+
     // --- Delete Confirmation Dialog ---
     investmentToDelete?.let { invToDelete ->
         ConfirmDialog(
             title = "Delete Investment?",
-            message = "Are you sure you want to delete ${invToDelete.name}?",
+            message = "Are you sure you want to delete ${invToDelete.name}? Its buys and sales stay in Activity as transfers, and your accounts don't change.",
             confirmText = "Delete",
             isDestructive = true,
             onConfirm = {

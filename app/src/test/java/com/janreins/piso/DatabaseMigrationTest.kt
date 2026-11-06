@@ -12,6 +12,7 @@ import com.janreins.piso.data.local.MIGRATION_2_3
 import com.janreins.piso.data.local.MIGRATION_3_4
 import com.janreins.piso.data.local.MIGRATION_4_5
 import com.janreins.piso.data.local.MIGRATION_5_6
+import com.janreins.piso.data.local.MIGRATION_6_7
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.After
@@ -49,7 +50,7 @@ class DatabaseMigrationTest {
         // from JVM test resources as a test-only asset archive for MigrationTestHelper.
         val schemaAssets = temporaryFolder.newFile("schemas.zip")
         ZipOutputStream(schemaAssets.outputStream()).use { zip ->
-            for (version in 1..6) {
+            for (version in 1..7) {
                 val path = "${AppDatabase::class.java.name}/$version.json"
                 zip.putNextEntry(ZipEntry("assets/$path"))
                 checkNotNull(javaClass.classLoader!!.getResourceAsStream(path)) {
@@ -241,6 +242,45 @@ class DatabaseMigrationTest {
             assertRow(db, "SELECT name, remainingAmount, tracksPurchases FROM debts WHERE id = 1", "Loan", 1500.0, 0L)
             assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
             assertRow(db, "SELECT amount, debtId, debtFlow FROM transactions WHERE id = 1", 125.5, 1L, null)
+        }
+    }
+
+    @Test
+    fun migrate6To7_keepsTransactionsAndInvestmentsAndAddsNoLinks() {
+        helper.createDatabase(dbName, 6).use { db ->
+            db.execSQL("INSERT INTO accounts VALUES (1, 'Wallet', 'Cash', 1234.5, '', 0)")
+            db.execSQL("INSERT INTO investments VALUES (1, 'Fund', 'Stocks', 3000.0, 'Investment notes', '10', 1700000000000)")
+            db.execSQL(
+                """
+                INSERT INTO transactions
+                    (id, dateMillis, type, category, subcategory, amount, note, accountId, transferToId, goalId, goalFlow, debtId, recurringId, debtFlow)
+                VALUES (1, 1700000000000, 'TRANSFER', 'Transfer', '', 200.0, '', 1, NULL, NULL, NULL, NULL, NULL, NULL)
+                """.trimIndent()
+            )
+        }
+
+        helper.runMigrationsAndValidate(dbName, 7, true, MIGRATION_6_7).use { db ->
+            assertRow(db, "SELECT name, balance FROM accounts WHERE id = 1", "Wallet", 1234.5)
+            assertRow(db, "SELECT name, currentValue, quantity FROM investments WHERE id = 1", "Fund", 3000.0, "10")
+            assertRow(db, "SELECT type, amount, accountId, investmentId FROM transactions WHERE id = 1", "TRANSFER", 200.0, 1L, null)
+            // The new column links an entry to an investment.
+            db.execSQL("UPDATE transactions SET investmentId = 1 WHERE id = 1")
+            assertRow(db, "SELECT investmentId FROM transactions WHERE id = 1", 1L)
+        }
+    }
+
+    @Test
+    fun migrate1To7_preservesFinancialDataAcrossAllMigrations() {
+        helper.createDatabase(dbName, 1).use { insertFinancialData(it, 1) }
+
+        helper.runMigrationsAndValidate(
+            dbName, 7, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7
+        ).use { db ->
+            assertRow(db, "SELECT COUNT(*) FROM accounts", 2L)
+            assertRow(db, "SELECT name, balance FROM accounts WHERE id = 1", "Wallet", 1234.5)
+            assertRow(db, "SELECT name, currentValue FROM investments WHERE id = 1", "Fund", 3000.0)
+            assertRow(db, "SELECT COUNT(*) FROM transactions", 2L)
+            assertRow(db, "SELECT amount, debtFlow, investmentId FROM transactions WHERE id = 1", 125.5, null, null)
         }
     }
 
