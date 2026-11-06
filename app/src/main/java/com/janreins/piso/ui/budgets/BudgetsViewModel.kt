@@ -150,6 +150,23 @@ class BudgetsViewModel(application: Application) : AndroidViewModel(application)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BudgetsUiState())
 
+    // --- Budget history: budget vs spending over the last few months, ending this month ---
+    private val _historyMonths = MutableStateFlow(DEFAULT_BUDGET_HISTORY_MONTHS)
+    val historyMonths: StateFlow<Int> = _historyMonths
+
+    fun setHistoryMonths(months: Int) {
+        if (months in BUDGET_HISTORY_PERIODS) _historyMonths.value = months
+    }
+
+    val history: StateFlow<BudgetHistory?> = combine(
+        repository.allBudgets,
+        transactions,
+        DateUtil.currentMonthKeyFlow(),
+        _historyMonths
+    ) { bdgts, txList, thisMonth, months ->
+        buildBudgetHistory(bdgts, txList, thisMonth, months)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun addBudget(budget: Budget) {
         viewModelScope.launch {
             repository.insertBudget(budget)
