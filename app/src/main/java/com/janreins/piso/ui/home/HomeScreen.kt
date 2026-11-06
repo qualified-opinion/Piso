@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.janreins.piso.data.local.BACKUP_SNOOZE_DAYS
+import com.janreins.piso.data.local.daysSince
 import com.janreins.piso.ui.components.PisoCard
 import com.janreins.piso.ui.components.ProgressBarWithPercent
 import com.janreins.piso.ui.recurring.DueRecurringCard
@@ -132,6 +135,48 @@ fun HomeScreen(
                     onRecord = viewModel::recordDueRecurring,
                     onSkip = viewModel::skipDueRecurring
                 )
+            }
+        }
+
+        // --- Backup reminder: a lost phone or forgotten PIN leaves only the last backup file ---
+        if (uiState.showBackupReminder) {
+            item {
+                val last = uiState.backupStatus.lastBackupMillis
+                PisoCard(contentPadding = 18.dp, modifier = Modifier.testTag("home_backup_reminder_card")) {
+                    Text(
+                        text = "Time to save a backup",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = if (last == null) {
+                            "You haven't saved a backup file yet. If this phone is lost or reset, your records go with it."
+                        } else {
+                            "Your last backup file is ${daysSince(last, System.currentTimeMillis())} days old. Save a new one and keep it off this phone."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = viewModel::snoozeBackupReminder,
+                            modifier = Modifier.testTag("home_backup_later_button")
+                        ) {
+                            Text("Later ($BACKUP_SNOOZE_DAYS days)")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { onNavigateToSubScreen(MoreSubScreen.SETTINGS) },
+                            modifier = Modifier.testTag("home_backup_now_button")
+                        ) {
+                            Text("Back up now")
+                        }
+                    }
+                }
             }
         }
 

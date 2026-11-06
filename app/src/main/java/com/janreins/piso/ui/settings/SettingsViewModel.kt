@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.janreins.piso.data.local.AppDatabase
+import com.janreins.piso.data.local.BackupReminderStore
+import com.janreins.piso.data.local.BackupStatus
 import com.janreins.piso.data.local.ThemeMode
 import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
@@ -61,6 +63,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val repository: FinanceRepository
     private val profileManager = UserProfileManager.getInstance(application)
+    private val backupReminder = BackupReminderStore.getInstance(application)
+
+    /** When a backup file was last saved, shown under Backup & Restore. */
+    val backupStatus: StateFlow<BackupStatus> = backupReminder.status
 
     private val _messageEvent = MutableSharedFlow<String>()
     val messageEvent: SharedFlow<String> = _messageEvent.asSharedFlow()
@@ -284,6 +290,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 ExportWriter.write(text, openStream)
+                // Only a saved backup file counts; a CSV can't be restored.
+                if (!isCsv) backupReminder.markBackupSaved()
                 showMessage(if (isCsv) "Transactions exported to CSV" else "Backup file saved successfully")
             } catch (e: CancellationException) {
                 throw e

@@ -110,6 +110,8 @@ class FinanceRepository(
             categoryDao.updateCategory(category.copy(name = trimmedNewName))
             categoryDao.updateSubcategoriesParentName(category.name, trimmedNewName, kind)
             categoryDao.updateTransactionsCategoryNameForType(category.name, trimmedNewName, kind)
+            // Schedules too, or their next entries would land under the old name
+            recurringDao.renameCategory(category.name, trimmedNewName, kind)
             if (kind == "EXPENSE") {
                 categoryDao.updateBudgetsCategoryName(category.name, trimmedNewName)
             }
@@ -122,14 +124,16 @@ class FinanceRepository(
 
     suspend fun deleteCategory(category: UserCategory) {
         database.withTransaction {
-            val count = categoryDao.countTransactionsForCategoryAndType(category.name, category.kind.uppercase())
+            val kind = category.kind.uppercase()
+            val count = categoryDao.countTransactionsForCategoryAndType(category.name, kind) +
+                recurringDao.countRulesForCategory(category.name, kind)
             if (count > 0) {
-                // If transactions use this category, archive it to keep historical data intact
+                // If transactions or schedules use this category, archive it to keep them intact
                 categoryDao.updateCategory(category.copy(isArchived = true))
             } else {
                 categoryDao.deleteCategory(category)
                 // Otherwise they'd reappear under a new category that reuses the name
-                categoryDao.deleteSubcategoriesForParent(category.name, category.kind.uppercase())
+                categoryDao.deleteSubcategoriesForParent(category.name, kind)
             }
         }
     }
@@ -149,6 +153,12 @@ class FinanceRepository(
                 trimmedNewName,
                 subcategory.parentKind.uppercase()
             )
+            recurringDao.renameSubcategory(
+                subcategory.parentCategoryName,
+                subcategory.name,
+                trimmedNewName,
+                subcategory.parentKind.uppercase()
+            )
         }
     }
 
@@ -158,13 +168,11 @@ class FinanceRepository(
 
     suspend fun deleteSubcategory(subcategory: UserSubcategory) {
         database.withTransaction {
-            val count = categoryDao.countTransactionsForSubcategory(
-                subcategory.parentCategoryName,
-                subcategory.name,
-                subcategory.parentKind.uppercase()
-            )
+            val kind = subcategory.parentKind.uppercase()
+            val count = categoryDao.countTransactionsForSubcategory(subcategory.parentCategoryName, subcategory.name, kind) +
+                recurringDao.countRulesForSubcategory(subcategory.parentCategoryName, subcategory.name, kind)
             if (count > 0) {
-                // Archive if referenced
+                // Archive if a transaction or schedule uses it
                 categoryDao.updateSubcategory(subcategory.copy(isArchived = true))
             } else {
                 categoryDao.deleteSubcategory(subcategory)

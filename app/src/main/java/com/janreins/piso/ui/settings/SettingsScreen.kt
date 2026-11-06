@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.piso.data.local.ThemeMode
+import com.janreins.piso.data.local.backupStatusText
 import com.janreins.piso.data.local.isWeakPin
 import com.janreins.piso.data.repository.UndoRestoreInfo
 import com.janreins.piso.ui.components.ConfirmDialog
@@ -101,6 +102,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val userProfile = uiState.userProfile
     val undoRestoreInfo by viewModel.undoRestoreInfo.collectAsStateWithLifecycle()
+    val backupStatus by viewModel.backupStatus.collectAsStateWithLifecycle()
 
     // Dialog States
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -505,6 +507,13 @@ fun SettingsScreen(
                         text = "Save your data to a .json file in Files/Drive, or restore from an existing Piso backup.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = backupStatusText(backupStatus, System.currentTimeMillis()),
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (backupStatus.lastBackupMillis == null) ExpenseRed else TealPrimary,
+                        modifier = Modifier.testTag("settings_last_backup_text")
                     )
                     Spacer(modifier = Modifier.height(14.dp))
 
