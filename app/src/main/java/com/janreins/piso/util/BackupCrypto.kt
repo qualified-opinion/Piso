@@ -57,7 +57,7 @@ object BackupCrypto {
 
     /** True if [text] looks like a password-protected Piso backup (no password needed to tell). */
     fun isEncrypted(text: String): Boolean = try {
-        JSONObject(text.trim().removePrefix("﻿")).optString("format") == FORMAT
+        JSONObject(text.trim().removePrefix("\uFEFF")).optString("format") == FORMAT
     } catch (_: Exception) {
         false
     }
@@ -68,7 +68,7 @@ object BackupCrypto {
      */
     fun decrypt(protectedText: String, password: CharArray): String {
         val root = try {
-            JSONObject(protectedText.trim().removePrefix("﻿"))
+            JSONObject(protectedText.trim().removePrefix("\uFEFF"))
         } catch (e: Exception) {
             throw IllegalArgumentException("Not a protected backup", e)
         }
