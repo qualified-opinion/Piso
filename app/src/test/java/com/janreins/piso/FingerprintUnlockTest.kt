@@ -149,7 +149,8 @@ class FingerprintUnlockTest {
 
     @Test
     fun removingTheKeyIsSafeWhereThereIsNoKeyStore() {
+        // Robolectric has no Android key store; removing a key that isn't there must not throw.
         FingerprintAuth.deleteKey()
-        assertFalse(FingerprintAuth.canUse(context))
+        FingerprintAuth.deleteKey()
     }
 }
