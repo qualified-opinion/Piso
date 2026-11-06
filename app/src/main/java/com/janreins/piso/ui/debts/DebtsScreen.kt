@@ -22,12 +22,14 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -72,6 +74,7 @@ fun DebtsScreen(
     var debtToEdit by remember { mutableStateOf<Debt?>(null) }
     var debtToDelete by remember { mutableStateOf<Debt?>(null) }
     var debtToRecordPayment by remember { mutableStateOf<Debt?>(null) }
+    var cardForPurchase by remember { mutableStateOf<Debt?>(null) }
 
     Scaffold(
         modifier = modifier.testTag("debts_screen"),
@@ -194,7 +197,7 @@ fun DebtsScreen(
                                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                         )
                                         Text(
-                                            text = debt.kind,
+                                            text = if (debt.tracksPurchases) "${debt.kind} · purchases recorded" else debt.kind,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -229,7 +232,16 @@ fun DebtsScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            Row(
+                            // A card with recorded purchases goes up and down, so "% paid" means nothing.
+                            if (debt.tracksPurchases) {
+                                Text(
+                                    text = if (debt.isPaidOff) "Nothing owed" else "${CurrencyUtil.formatPeso(debt.remainingAmount)} owed",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (debt.isPaidOff) IncomeGreen else ExpenseRed
+                                    )
+                                )
+                            } else Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -247,12 +259,14 @@ fun DebtsScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
-                            ProgressBarWithPercent(
-                                fraction = fractionPaid,
-                                showLabel = false,
-                                customColor = if (debt.isPaidOff) IncomeGreen else TealPrimary
-                            )
+                            if (!debt.tracksPurchases) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                ProgressBarWithPercent(
+                                    fraction = fractionPaid,
+                                    showLabel = false,
+                                    customColor = if (debt.isPaidOff) IncomeGreen else TealPrimary
+                                )
+                            }
 
                             if (debt.notes.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -263,8 +277,24 @@ fun DebtsScreen(
                                 )
                             }
 
-                            if (!debt.isPaidOff) {
+                            if (debt.tracksPurchases) {
                                 Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = { cardForPurchase = debt },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp)
+                                        .testTag("card_add_purchase_button"),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Add purchase", fontSize = 14.sp)
+                                }
+                            }
+
+                            if (!debt.isPaidOff) {
+                                Spacer(modifier = Modifier.height(if (debt.tracksPurchases) 8.dp else 12.dp))
                                 Button(
                                     onClick = { debtToRecordPayment = debt },
                                     modifier = Modifier
@@ -328,11 +358,29 @@ fun DebtsScreen(
         )
     }
 
+    // --- Card Purchase Dialog ---
+    cardForPurchase?.let { card ->
+        CardPurchaseDialog(
+            card = card,
+            categories = uiState.categories,
+            subcategories = uiState.subcategories,
+            onDismiss = { cardForPurchase = null },
+            onConfirm = { amount, category, subcategory, note, dateMillis ->
+                viewModel.recordCardPurchase(card.id, amount, category, subcategory, note, dateMillis)
+                cardForPurchase = null
+            }
+        )
+    }
+
     // --- Delete Confirmation Dialog ---
     debtToDelete?.let { dToDelete ->
         ConfirmDialog(
             title = "Delete Debt?",
-            message = "Are you sure you want to delete ${dToDelete.name}? Recorded payment transactions will remain in Activity.",
+            message = if (dToDelete.tracksPurchases) {
+                "Are you sure you want to delete ${dToDelete.name}? Its purchases and payments stay in Activity, and purchases still count as spending."
+            } else {
+                "Are you sure you want to delete ${dToDelete.name}? Recorded payment transactions will remain in Activity."
+            },
             confirmText = "Delete",
             isDestructive = true,
             onConfirm = {

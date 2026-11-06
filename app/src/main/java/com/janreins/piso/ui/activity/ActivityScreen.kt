@@ -50,6 +50,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.janreins.piso.data.models.CARD_PAYMENT_CATEGORY
+import com.janreins.piso.data.models.isCardPurchase
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.ui.components.ConfirmDialog
 import com.janreins.piso.ui.components.PisoCard
@@ -389,6 +391,9 @@ fun ActivityScreen(
                                                     } else {
                                                         label
                                                     }
+                                                } else if (tx.debtId != null) {
+                                                    // A payment to a card whose purchases are recorded
+                                                    tx.category.ifBlank { CARD_PAYMENT_CATEGORY }
                                                 } else if (accountName != null && toAccountName != null) {
                                                     "$accountName → $toAccountName"
                                                 } else {
@@ -408,10 +413,14 @@ fun ActivityScreen(
                                                 append(DateUtil.formatDate(tx.dateMillis))
                                                 // An adjustment that adds money only has the "to" side filled in
                                                 val shownAccount = if (tx.type == "ADJUSTMENT") accountName ?: toAccountName else accountName
-                                                if (shownAccount != null && (tx.type != "TRANSFER" || (isGoalTransfer && tx.accountId == tx.transferToId))) {
+                                                val showsAccount = tx.type != "TRANSFER" ||
+                                                    (isGoalTransfer && tx.accountId == tx.transferToId) ||
+                                                    tx.debtId != null
+                                                if (shownAccount != null && showsAccount) {
                                                     append(" · ")
                                                     append(shownAccount)
                                                 }
+                                                if (tx.isCardPurchase) append(" · Credit card")
                                                 if (tx.note.isNotBlank()) {
                                                     append(" · ")
                                                     append(tx.note)

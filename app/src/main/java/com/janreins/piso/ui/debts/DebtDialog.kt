@@ -2,6 +2,9 @@ package com.janreins.piso.ui.debts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +19,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +56,7 @@ fun DebtDialog(
         )
     }
     var notes by remember { mutableStateOf(initialDebt?.notes ?: "") }
+    var tracksPurchases by remember { mutableStateOf(initialDebt?.tracksPurchases ?: false) }
 
     var kindDropdownExpanded by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -167,6 +173,33 @@ fun DebtDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                // Credit cards only: record each purchase as spending when it's made
+                if (kind == CREDIT_CARD_KIND) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("I record purchases on this card", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                text = if (tracksPurchases) {
+                                    "Each purchase counts as spending when you make it. Paying the card only moves money, so it isn't counted twice."
+                                } else {
+                                    "Off: spending is counted when you pay the card, as before."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = tracksPurchases,
+                            onCheckedChange = { tracksPurchases = it },
+                            modifier = Modifier.testTag("debt_tracks_purchases_switch")
+                        )
+                    }
+                }
+
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
@@ -201,7 +234,8 @@ fun DebtDialog(
                         originalAmount = parsedOriginal,
                         remainingAmount = parsedRemaining,
                         notes = notes.trim(),
-                        dueMillis = initialDebt?.dueMillis
+                        dueMillis = initialDebt?.dueMillis,
+                        tracksPurchases = kind == CREDIT_CARD_KIND && tracksPurchases
                     )
                     onSave(debt)
                 },
@@ -221,3 +255,6 @@ fun DebtDialog(
         }
     )
 }
+
+/** The debt kind that can track its purchases. */
+const val CREDIT_CARD_KIND = "Credit Card"
