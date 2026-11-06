@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Repeat
@@ -80,6 +81,19 @@ fun MoreScreen(
                     text = "Financial Planning",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // --- Year overview Item ---
+            item {
+                MoreMenuCard(
+                    title = "Year overview",
+                    subtitle = "Income, spending and savings per month",
+                    icon = Icons.Default.BarChart,
+                    iconBg = TealContainer,
+                    iconTint = TealPrimary,
+                    onClick = { onOpenSubScreen(MoreSubScreen.OVERVIEW) },
+                    testTag = "more_overview_button"
                 )
             }
 

@@ -69,6 +69,8 @@ import com.janreins.piso.ui.invest.InvestScreen
 import com.janreins.piso.ui.invest.InvestViewModel
 import com.janreins.piso.ui.more.MoreScreen
 import com.janreins.piso.ui.more.MoreViewModel
+import com.janreins.piso.ui.overview.OverviewScreen
+import com.janreins.piso.ui.overview.OverviewViewModel
 import com.janreins.piso.ui.recurring.RecurringScreen
 import com.janreins.piso.ui.recurring.RecurringViewModel
 import com.janreins.piso.ui.settings.CategoriesScreen
@@ -210,7 +212,8 @@ fun PisoApp(
     investViewModel: InvestViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
     moreViewModel: MoreViewModel = viewModel(),
-    recurringViewModel: RecurringViewModel = viewModel()
+    recurringViewModel: RecurringViewModel = viewModel(),
+    overviewViewModel: OverviewViewModel = viewModel()
 ) {
     val currentTab by appViewModel.currentTab.collectAsStateWithLifecycle()
     val moreSubScreen by appViewModel.moreSubScreen.collectAsStateWithLifecycle()
@@ -331,6 +334,15 @@ fun PisoApp(
                     MoreSubScreen.RECURRING -> RecurringScreen(
                         viewModel = recurringViewModel,
                         onBack = { appViewModel.closeMoreSubScreen() }
+                    )
+                    MoreSubScreen.OVERVIEW -> OverviewScreen(
+                        viewModel = overviewViewModel,
+                        onBack = { appViewModel.closeMoreSubScreen() },
+                        onOpenMonth = { monthKey ->
+                            activityViewModel.setSelectedMonthKey(monthKey)
+                            activityViewModel.setActivityFilter("ALL")
+                            appViewModel.selectTab(MainTab.ACTIVITY)
+                        }
                     )
                     MoreSubScreen.CATEGORIES -> CategoriesScreen(
                         viewModel = settingsViewModel,
