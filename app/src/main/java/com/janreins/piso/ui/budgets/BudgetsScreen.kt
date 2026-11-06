@@ -1,5 +1,6 @@
 package com.janreins.piso.ui.budgets
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +64,18 @@ fun BudgetsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showHistory by rememberSaveable { mutableStateOf(false) }
+    if (showHistory) {
+        // System back closes the history page first, then leaves Budgets as before.
+        BackHandler { showHistory = false }
+        BudgetHistoryScreen(
+            viewModel = viewModel,
+            onBack = { showHistory = false },
+            modifier = modifier
+        )
+        return
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val budgets = uiState.budgets
@@ -101,6 +116,16 @@ fun BudgetsScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showHistory = true },
+                        modifier = Modifier.testTag("budget_history_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "Budget history",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     if (copyableFromLastMonth > 0) {
                         IconButton(
                             onClick = { viewModel.copyBudgetsFromPreviousMonth(currentMonthKey) },

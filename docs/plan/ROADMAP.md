@@ -1,6 +1,6 @@
 # Piso roadmap
 
-Updated 2026-10-26. Main is at `518a591` (B10b). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
+Updated 2026-11-06. Main is at `23daa18` (B11). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
 
 ## What Piso is
 Piso is Jan's private, offline personal finance tracker for Android, covering accounts, transactions, budgets, goals, debts and investments in pesos. It's built with Kotlin, Compose and Room, and it has a PIN lock, `FLAG_SECURE` and no network access. Backups are JSON export and import, and CSV export.
@@ -11,7 +11,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Also done:** B9 only offers the lock-screen RESET after 10 wrong PINs (Jan's decision D1).
 - **Also done:** B10a lets Jan look back at past months' budgets (PR #16).
 - **Also done:** B10b lets Jan archive old accounts (database version 4, PR #17).
-- **In progress:** B11 adds recurring expenses and income (database version 5, D5 settled: per schedule). It is in review.
+- **Also done:** B11 adds recurring expenses and income (database version 5, D5 settled: per schedule, PR #18).
+- **In progress:** B12 adds a budget history page comparing budget with spending per category over the last 3, 6 or 12 months (no database change). It is in review.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet.
 
 ## Status table
@@ -31,7 +32,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B9 | `fix/piso-b9-lock-policy` | P13 RESET only after 10 wrong PINs (D1) | Merged, PR #15, `14f81c4` | [batch9](handoffs/batch9-lock-reset.md) |
 | B10a | `feat/piso-b10-past-budgets` | U3 past-month budgets (no schema change) | Merged, PR #16, `bf8dac7` | [batch10](handoffs/batch10-budgets-archive.md) |
 | B10b | `feat/piso-b10-account-archive` | U2 account archive (database version 4) | Merged, PR #17, `518a591` | [batch10](handoffs/batch10-budgets-archive.md) |
-| B11 | `claude/project-thread-co3kep` | U6 recurring expenses and income (database version 5) | In review | [batch11](handoffs/batch11-recurring.md) |
+| B11 | `claude/project-thread-co3kep` | U6 recurring expenses and income (database version 5) | Merged, PR #18, `23daa18` | [batch11](handoffs/batch11-recurring.md) |
+| B12 | `claude/project-thread-m9f8cl` | U7 budget vs spending history (no schema change) | In review | [batch12](handoffs/batch12-budget-history.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -71,6 +73,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)) and review 2 (2
 | U3 | UX | View past months' budgets | Fixed in B10a (no schema change needed) |
 | U4 | UX | Tell Jan that Share Backup will need the PIN on return | Fixed in B6 (copy only) |
 | U6 | UX | Recurring expenses and income, so fixed costs aren't typed every time | Fixed in B11 (database version 5) |
+| U7 | UX | See budget against spending over past months, to find overspending | B12, in review (no schema change) |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
 ## Decisions Jan owes
@@ -100,6 +103,7 @@ P12 PBKDF2 for the PIN hash.
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B12 (once released): open Budgets, tap History, and see the category you overspent most at the top in red with the right amount; switch between 3, 6 and 12 months; see unbudgeted spending listed at the bottom; system back returns to Budgets.
 - After B11 (once released): add a daily ₱50 fare starting two days ago and see three entries (two days ago, yesterday and today) in Activity with the right dates and the wallet ₱150 lower; add monthly rent on the 31st and see the next date go to 30 November; turn on "Ask me before recording" for electricity and see it wait on Home until you tap Record; delete a schedule and see its past entries stay.
 - After B10a (once released): go back to last month in Budgets and see last month's budgets and spending; the forward arrow is disabled on this month.
 - After B10b (once released): archive an old e-wallet and see it gone from the add-transaction picker, net worth unchanged, and its history still in Activity; unarchive it again from the Archived section.
