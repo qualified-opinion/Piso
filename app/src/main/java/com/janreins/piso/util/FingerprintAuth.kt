@@ -38,6 +38,12 @@ object FingerprintAuth {
     private const val KEY_ALIAS = "piso_fingerprint_unlock"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
 
+    /**
+     * The code some phones report when the prompt's own button (here "Use PIN") is tapped.
+     * Android's public API doesn't name it, so it is spelled out (it is 13 on every version).
+     */
+    internal const val ERROR_NEGATIVE_BUTTON = 13
+
     /** Android's prompt and the key settings Piso needs arrived in Android 10. */
     @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.Q)
     fun isSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
@@ -103,7 +109,7 @@ object FingerprintAuth {
     internal fun isCancel(errorCode: Int): Boolean = errorCode in setOf(
         BiometricPrompt.BIOMETRIC_ERROR_CANCELED,
         BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED,
-        BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON
+        ERROR_NEGATIVE_BUTTON
     )
 
     /** Errors that mean the key was lost, for example the phone's screen lock was removed. */

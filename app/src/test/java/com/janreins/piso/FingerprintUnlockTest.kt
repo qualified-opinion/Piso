@@ -140,7 +140,7 @@ class FingerprintUnlockTest {
     @Test
     fun closingThePromptIsNotAnError() {
         assertTrue(FingerprintAuth.isCancel(BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED))
-        assertTrue(FingerprintAuth.isCancel(BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON))
+        assertTrue(FingerprintAuth.isCancel(FingerprintAuth.ERROR_NEGATIVE_BUTTON))
         assertTrue(FingerprintAuth.isCancel(BiometricPrompt.BIOMETRIC_ERROR_CANCELED))
         assertFalse(FingerprintAuth.isCancel(BiometricPrompt.BIOMETRIC_ERROR_LOCKOUT))
         assertTrue(FingerprintAuth.isKeyLost(BiometricPrompt.BIOMETRIC_ERROR_NO_BIOMETRICS))
