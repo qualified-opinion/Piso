@@ -1,6 +1,6 @@
 # Piso roadmap
 
-Updated 2026-11-06. Main is at `628b8eb` (B14). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
+Updated 2026-11-06. Main is at `1c6ab40` (B15). The latest release is v1.0.3 (2026-10-14), published by Jan. A signed 1.0.5 build of `518a591` was made for Jan on 2026-10-24. Jan plans to install one APK once the open batches are done.
 
 ## What Piso is
 Piso is Jan's private, offline personal finance tracker for Android, covering accounts, transactions, budgets, goals, debts and investments in pesos. It's built with Kotlin, Compose and Room, and it has a PIN lock, `FLAG_SECURE` and no network access. Backups are JSON export and import, and CSV export.
@@ -15,7 +15,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Also done:** B12 adds a budget history page comparing budget with spending per category over the last 3, 6 or 12 months (no database change, PR #19).
 - **Also done:** B13 fixes category renames for recurring schedules, adds a backup reminder and lets Activity search every month (no database change, PR #20).
 - **Also done:** B14 adds a year overview: income, spending and amount saved per month, like a monthly P&L (no database change, PR #21).
-- **In progress:** B15 adds credit card purchases that count as spending when bought and raise what's owed on the card (database version 6, D6 settled: per card switch). It is in review.
+- **Also done:** B15 adds credit card purchases that count as spending when bought and raise what's owed on the card (database version 6, D6 settled: per card switch, PR #22).
+- **In progress:** B16 lets Jan buy or sell investments from an account without counting it as spending or income (database version 7). It is in review.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet.
 
 ## Status table
@@ -39,7 +40,8 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B12 | `claude/project-thread-m9f8cl` | U7 budget vs spending history (no schema change) | Merged, PR #19, `19febb7` | [batch12](handoffs/batch12-budget-history.md) |
 | B13 | `claude/project-thread-6gsfiw` | U8 category rename reaches schedules, U9 backup reminder, U10 search all months (no schema change) | Merged, PR #20, `e62b9da` | [batch13](handoffs/batch13-small-fixes.md) |
 | B14 | `claude/project-thread-vkg33n` | U11 year overview: income, spending and savings per month (no schema change) | Merged, PR #21, `628b8eb` | [batch14](handoffs/batch14-year-overview.md) |
-| B15 | `claude/project-thread-vkg33n` | U12 credit card purchases (database version 6, D6) | In review | [batch15](handoffs/batch15-card-purchases.md) |
+| B15 | `claude/project-thread-vkg33n` | U12 credit card purchases (database version 6, D6) | Merged, PR #22, `1c6ab40` | [batch15](handoffs/batch15-card-purchases.md) |
+| B16 | `claude/project-thread-vkg33n` | U13 investments bought or sold from an account (database version 7) | In review | [batch16](handoffs/batch16-investment-moves.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -84,7 +86,8 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)), review 2 (2026
 | U9 | UX | Backup reminder: show the last backup file date and remind on Home after 30 days | Fixed in B13 |
 | U10 | UX | Activity search only covers the month on screen; no Adjustments filter | Fixed in B13 |
 | U11 | UX | Year overview: income, spending and amount saved per month, like a monthly P&L | Fixed in B14 |
-| U12 | UX | Credit card purchases that count as spending and raise what's owed on the card | B15, in review |
+| U12 | UX | Credit card purchases that count as spending and raise what's owed on the card | Fixed in B15 |
+| U13 | UX | Buy or sell an investment from an account without it counting as spending or income | B16, in review |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
 ## Decisions Jan owes
@@ -102,7 +105,6 @@ P12 PBKDF2 for the PIN hash.
 
 From review 3 (2026-11-06), for Jan to pick later:
 - Fingerprint unlock (M, lock code, needs its own pack and tests).
-- Investments bought or sold from an account, without counting as spending (M, database change).
 - Password-protected backup file (M).
 
 ## Cut list
@@ -120,6 +122,7 @@ From review 3 (2026-11-06), for Jan to pick later:
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B16 (once released): see the phone checks in [batch16](handoffs/batch16-investment-moves.md).
 - After B15 (once released): see the phone checks in [batch15](handoffs/batch15-card-purchases.md).
 - After B14 (once released): see the phone checks in [batch14](handoffs/batch14-year-overview.md).
 - After B13 (once released): see the phone checks in [batch13](handoffs/batch13-small-fixes.md).
@@ -139,4 +142,4 @@ From review 3 (2026-11-06), for Jan to pick later:
 - The repo was renamed from `JanReins/Piso` to `qualified-opinion/Piso`. The package stays `com.janreins.piso`.
 - Safety copies are stored as `filesDir/backups/pre-import-<19-digit ms>.json`. The last three are kept (`BackupSafety.kt`).
 - The release key is Jan's ("Qualified Opinion, Cebu City"). Its secrets are in repo secrets and are never committed.
-- The Room database is at version 6 (B15), with schemas in `app/schemas/`.
+- The Room database is at version 7 (B16), with schemas in `app/schemas/`.

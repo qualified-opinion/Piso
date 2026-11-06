@@ -58,6 +58,7 @@ data class BackupData(
             if (tx.debtId != null) obj.put("debtId", tx.debtId)
             if (tx.recurringId != null) obj.put("recurringId", tx.recurringId)
             if (tx.debtFlow != null) obj.put("debtFlow", tx.debtFlow)
+            if (tx.investmentId != null) obj.put("investmentId", tx.investmentId)
             txArr.put(obj)
         }
         root.put("transactions", txArr)
@@ -228,7 +229,8 @@ data class BackupData(
                             debtId = if (obj.has("debtId")) obj.getLong("debtId") else null,
                             recurringId = if (obj.has("recurringId")) obj.getLong("recurringId") else null,
                             // Backups from before card purchases have none: every debt entry is a payment.
-                            debtFlow = if (obj.has("debtFlow")) obj.getString("debtFlow") else null
+                            debtFlow = if (obj.has("debtFlow")) obj.getString("debtFlow") else null,
+                            investmentId = if (obj.has("investmentId")) obj.getLong("investmentId") else null
                         )
                     )
                 }

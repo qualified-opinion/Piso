@@ -335,6 +335,8 @@ fun ActivityScreen(
                                     viewModel.showMessage("To change this, delete it here and add it again from Goals")
                                 } else if (tx.debtId != null) {
                                     viewModel.showMessage("To change this, delete it here and record it again from Debts")
+                                } else if (tx.investmentId != null) {
+                                    viewModel.showMessage("To change this, delete it here and record it again from Invest")
                                 } else if (tx.type == "ADJUSTMENT") {
                                     viewModel.showMessage("To change this, delete it and adjust again")
                                 } else {
@@ -391,6 +393,8 @@ fun ActivityScreen(
                                                     } else {
                                                         label
                                                     }
+                                                } else if (tx.investmentId != null) {
+                                                    if (tx.transferToId != null) "Investment sold" else "Investment bought"
                                                 } else if (tx.debtId != null) {
                                                     // A payment to a card whose purchases are recorded
                                                     tx.category.ifBlank { CARD_PAYMENT_CATEGORY }
@@ -412,10 +416,11 @@ fun ActivityScreen(
                                                 }
                                                 append(DateUtil.formatDate(tx.dateMillis))
                                                 // An adjustment that adds money only has the "to" side filled in
-                                                val shownAccount = if (tx.type == "ADJUSTMENT") accountName ?: toAccountName else accountName
+                                                val oneSided = tx.type == "ADJUSTMENT" || tx.investmentId != null
+                                                val shownAccount = if (oneSided) accountName ?: toAccountName else accountName
                                                 val showsAccount = tx.type != "TRANSFER" ||
                                                     (isGoalTransfer && tx.accountId == tx.transferToId) ||
-                                                    tx.debtId != null
+                                                    tx.debtId != null || tx.investmentId != null
                                                 if (shownAccount != null && showsAccount) {
                                                     append(" · ")
                                                     append(shownAccount)

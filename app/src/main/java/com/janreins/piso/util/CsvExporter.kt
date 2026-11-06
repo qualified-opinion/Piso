@@ -34,6 +34,7 @@ object CsvExporter {
                 }
                 val linkedTo = when {
                     tx.goalId != null || tx.goalFlow != null -> "Goal"
+                    tx.investmentId != null -> "Investment"
                     tx.isCardPurchase -> "Card purchase"
                     tx.debtId != null -> "Debt"
                     else -> ""

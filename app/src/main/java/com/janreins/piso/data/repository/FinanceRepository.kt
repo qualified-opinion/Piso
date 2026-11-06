@@ -10,12 +10,15 @@ import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Goal
+import com.janreins.piso.data.models.INVESTMENT_CATEGORY
 import com.janreins.piso.data.models.Investment
 import com.janreins.piso.data.models.RecurringRule
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.models.isCardPurchase
+import com.janreins.piso.data.models.isInvestmentBuy
+import com.janreins.piso.data.models.isInvestmentSale
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.CurrencyUtil.roundCents
 import com.janreins.piso.util.DateUtil
@@ -343,6 +346,17 @@ class FinanceRepository(
             debtDao.updateDebt(debt.copy(remainingAmount = roundCents(remaining)))
         }
 
+        // Investment bought from an account raises its value; sold into an account lowers it.
+        // A value is never below zero (it may have been edited down since).
+        if (tx.isInvestmentBuy || tx.isInvestmentSale) {
+            val inv = investmentDao.getInvestmentById(tx.investmentId!!)
+            if (inv != null) {
+                val direction = if (tx.isInvestmentBuy) 1.0 else -1.0
+                val newValue = roundCents(max(0.0, inv.currentValue + sign * direction * amount))
+                investmentDao.updateInvestment(inv.copy(currentValue = newValue))
+            }
+        }
+
         // Goal contribution ("IN") or withdrawal ("OUT")
         if (tx.goalId != null && (tx.goalFlow == "IN" || tx.goalFlow == "OUT")) {
             val goal = goalDao.getGoalById(tx.goalId)
@@ -572,7 +586,91 @@ class FinanceRepository(
         investmentDao.insertInvestment(investment.copy(currentValue = roundCents(investment.currentValue)))
     suspend fun updateInvestment(investment: Investment) =
         investmentDao.updateInvestment(investment.copy(currentValue = roundCents(investment.currentValue)))
-    suspend fun deleteInvestment(investment: Investment) = investmentDao.deleteInvestment(investment)
+    suspend fun deleteInvestment(investment: Investment) {
+        database.withTransaction {
+            // Buys and sales stay as transfers; detaching them stops a later investment that
+            // reuses this id (possible after a backup restore) from being changed by them.
+            transactionDao.detachInvestment(investment.id)
+            investmentDao.deleteInvestment(investment)
+        }
+    }
+
+    /**
+     * Adds a new investment bought with money from [fromAccountId]: the account goes down by
+     * its value and a buy is recorded on [dateMillis], so net worth doesn't change.
+     */
+    suspend fun insertInvestmentFromAccount(
+        investment: Investment,
+        fromAccountId: Long,
+        dateMillis: Long = System.currentTimeMillis()
+    ): Long = database.withTransaction {
+        val cost = roundCents(investment.currentValue)
+        val id = investmentDao.insertInvestment(investment.copy(currentValue = 0.0))
+        if (cost > 0.0) recordInvestmentMove(id, investment.name, cost, fromAccountId, buy = true, dateMillis = dateMillis)
+        id
+    }
+
+    /**
+     * Buys more of an investment with [amount] from [fromAccountId]. Its value and the
+     * account move by the same amount, so this is never spending. False if nothing was saved.
+     */
+    suspend fun buyInvestment(
+        investmentId: Long,
+        amount: Double,
+        fromAccountId: Long,
+        dateMillis: Long = System.currentTimeMillis(),
+        note: String = ""
+    ): Boolean = database.withTransaction {
+        val inv = investmentDao.getInvestmentById(investmentId) ?: return@withTransaction false
+        val rounded = roundCents(amount)
+        if (rounded <= 0.0 || accountDao.getAccountById(fromAccountId) == null) return@withTransaction false
+        recordInvestmentMove(investmentId, inv.name, rounded, fromAccountId, buy = true, dateMillis = dateMillis, note = note)
+        true
+    }
+
+    /**
+     * Sells [amount] of an investment into [toAccountId]. It can't be more than the current
+     * value (update the value first if it has grown), so deleting the sale restores it exactly.
+     * This is never income. False if nothing was saved.
+     */
+    suspend fun sellInvestment(
+        investmentId: Long,
+        amount: Double,
+        toAccountId: Long,
+        dateMillis: Long = System.currentTimeMillis(),
+        note: String = ""
+    ): Boolean = database.withTransaction {
+        val inv = investmentDao.getInvestmentById(investmentId) ?: return@withTransaction false
+        val rounded = roundCents(amount)
+        if (rounded <= 0.0 || rounded > inv.currentValue || accountDao.getAccountById(toAccountId) == null) {
+            return@withTransaction false
+        }
+        recordInvestmentMove(investmentId, inv.name, rounded, toAccountId, buy = false, dateMillis = dateMillis, note = note)
+        true
+    }
+
+    private suspend fun recordInvestmentMove(
+        investmentId: Long,
+        name: String,
+        amount: Double,
+        accountId: Long,
+        buy: Boolean,
+        dateMillis: Long,
+        note: String = ""
+    ) {
+        val tx = Transaction(
+            dateMillis = dateMillis,
+            type = "TRANSFER",
+            category = INVESTMENT_CATEGORY,
+            amount = amount,
+            note = note.trim().ifBlank { if (buy) "Bought $name" else "Sold $name" },
+            accountId = if (buy) accountId else null,
+            transferToId = if (buy) null else accountId,
+            investmentId = investmentId
+        )
+        applyTransactionBalance(tx)
+        transactionDao.insertTransaction(tx)
+    }
 
     // --- Recurring schedules ---
     //
