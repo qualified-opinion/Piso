@@ -135,6 +135,13 @@ class MainActivity : ComponentActivity() {
                                 },
                                 canResetAllData = {
                                     appViewModel.canResetFromLockScreen()
+                                },
+                                fingerprintUnlockOn = userProfile.fingerprintUnlock,
+                                onFingerprintUnlock = {
+                                    appViewModel.unlockWithFingerprint()
+                                },
+                                onFingerprintsChanged = {
+                                    appViewModel.onFingerprintsChanged()
                                 }
                             )
                         }

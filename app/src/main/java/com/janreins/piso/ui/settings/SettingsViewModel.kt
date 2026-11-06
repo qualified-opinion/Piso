@@ -19,6 +19,7 @@ import com.janreins.piso.data.repository.UndoRestoreInfo
 import com.janreins.piso.util.BackupCrypto
 import com.janreins.piso.util.CsvExporter
 import com.janreins.piso.util.ExportWriter
+import com.janreins.piso.util.FingerprintAuth
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -164,9 +165,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun removePin(oldPin: String): Boolean {
         val success = profileManager.removePin(oldPin)
         if (success) {
+            FingerprintAuth.deleteKey()
             showMessage("PIN removed")
         }
         return success
+    }
+
+    /** Turns fingerprint unlock on after the phone confirmed a fingerprint, or off. */
+    fun setFingerprintUnlock(enabled: Boolean) {
+        if (!enabled) FingerprintAuth.deleteKey()
+        if (profileManager.setFingerprintUnlock(enabled)) {
+            showMessage(if (enabled) "Fingerprint unlock is on" else "Fingerprint unlock is off")
+        } else {
+            FingerprintAuth.deleteKey()
+            showMessage("Set a PIN first")
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {

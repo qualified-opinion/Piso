@@ -19,7 +19,9 @@ enum class ThemeMode {
 data class UserProfile(
     val displayName: String = "",
     val hasPin: Boolean = false,
-    val themeMode: ThemeMode = ThemeMode.LIGHT
+    val themeMode: ThemeMode = ThemeMode.LIGHT,
+    /** Fingerprint can open the lock screen. Only ever true while a PIN is set. */
+    val fingerprintUnlock: Boolean = false
 )
 
 fun isWeakPin(pin: String): Boolean {
@@ -57,7 +59,8 @@ class UserProfileManager(
         return UserProfile(
             displayName = name,
             hasPin = hash.isNotBlank(),
-            themeMode = theme
+            themeMode = theme,
+            fingerprintUnlock = hash.isNotBlank() && prefs.getBoolean(KEY_FINGERPRINT_UNLOCK, false)
         )
     }
 
@@ -98,6 +101,7 @@ class UserProfileManager(
         editor.remove(KEY_LOCKOUT_UNTIL)
         editor.remove(KEY_LOCKOUT_UNTIL_ELAPSED)
         editor.remove(KEY_LOCKOUT_BOOT_COUNT)
+        editor.remove(KEY_FINGERPRINT_UNLOCK)
         editor.apply()
         _userProfile.value = loadProfile()
         _isLocked.value = false
@@ -182,6 +186,31 @@ class UserProfileManager(
         }
     }
 
+    fun isFingerprintUnlockOn(): Boolean = hasPin() && prefs.getBoolean(KEY_FINGERPRINT_UNLOCK, false)
+
+    /**
+     * Turns fingerprint unlock on or off. It can be on only while a PIN is set, because the PIN
+     * stays the way in whenever the fingerprint can't be used. Returns false if it can't be turned on.
+     */
+    fun setFingerprintUnlock(enabled: Boolean): Boolean {
+        if (enabled && !hasPin()) return false
+        prefs.edit().putBoolean(KEY_FINGERPRINT_UNLOCK, enabled).apply()
+        _userProfile.value = loadProfile()
+        return true
+    }
+
+    /**
+     * Opens the lock screen after the phone confirmed a fingerprint. A fingerprint proves it is
+     * the owner, so it also clears the wrong-PIN count and any wait. Refused if fingerprint unlock
+     * is off.
+     */
+    fun unlockWithFingerprint(): Boolean {
+        if (!isFingerprintUnlockOn()) return false
+        resetFailedAttempts()
+        _isLocked.value = false
+        return true
+    }
+
     fun lock() {
         pickerLockExemption.clear()
         if (hasPin()) {
@@ -205,7 +234,7 @@ class UserProfileManager(
 
     fun removePin(oldPin: String): Boolean {
         if (!verifyPin(oldPin)) return false
-        prefs.edit().remove(KEY_PIN_HASH).apply()
+        prefs.edit().remove(KEY_PIN_HASH).remove(KEY_FINGERPRINT_UNLOCK).apply()
         resetFailedAttempts()
         _userProfile.value = loadProfile()
         _isLocked.value = false
@@ -234,6 +263,7 @@ class UserProfileManager(
         private const val KEY_LOCKOUT_UNTIL = "lockout_until"
         private const val KEY_LOCKOUT_UNTIL_ELAPSED = "lockout_until_elapsed"
         private const val KEY_LOCKOUT_BOOT_COUNT = "lockout_boot_count"
+        private const val KEY_FINGERPRINT_UNLOCK = "fingerprint_unlock"
 
         @Volatile
         private var INSTANCE: UserProfileManager? = null

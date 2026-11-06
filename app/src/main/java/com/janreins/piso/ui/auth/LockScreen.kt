@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -25,31 +26,40 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.ui.components.PinDots
 import com.janreins.piso.ui.components.PinKeypad
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.util.FingerprintAuth
+import com.janreins.piso.util.FingerprintOutcome
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun LockScreen(
@@ -58,6 +68,9 @@ fun LockScreen(
     onResetAllData: () -> Unit,
     getLockoutRemainingSeconds: () -> Int = { 0 },
     canResetAllData: () -> Boolean = { false },
+    fingerprintUnlockOn: Boolean = false,
+    onFingerprintUnlock: () -> Boolean = { false },
+    onFingerprintsChanged: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var enteredPin by remember { mutableStateOf("") }
@@ -72,6 +85,50 @@ fun LockScreen(
     var resetError by remember { mutableStateOf<String?>(null) }
 
     val scrollState = rememberScrollState()
+
+    // --- Fingerprint (only when turned on in Settings and the phone has one saved) ---
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val fingerprintReady = remember(fingerprintUnlockOn) {
+        fingerprintUnlockOn && FingerprintAuth.canUse(context)
+    }
+    var fingerprintSignal by remember { mutableStateOf<android.os.CancellationSignal?>(null) }
+    var fingerprintAutoShown by rememberSaveable { mutableStateOf(false) }
+
+    fun askForFingerprint() {
+        fingerprintSignal?.cancel()
+        fingerprintSignal = FingerprintAuth.authenticate(
+            context = context,
+            title = "Unlock Piso",
+            subtitle = "Touch the fingerprint sensor",
+            negativeText = "Use PIN"
+        ) { outcome ->
+            fingerprintSignal = null
+            when (outcome) {
+                FingerprintOutcome.Success -> {
+                    if (!onFingerprintUnlock()) errorMessage = "Enter your PIN."
+                }
+                FingerprintOutcome.Cancelled -> Unit
+                FingerprintOutcome.FingerprintsChanged -> onFingerprintsChanged()
+                is FingerprintOutcome.Error -> {
+                    isPinError = false
+                    errorMessage = outcome.message
+                }
+            }
+        }
+    }
+
+    // Ask once when the lock screen first shows, after Piso is back in front.
+    LaunchedEffect(fingerprintReady) {
+        if (fingerprintReady && !fingerprintAutoShown) {
+            lifecycleOwner.lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+            fingerprintAutoShown = true
+            askForFingerprint()
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { fingerprintSignal?.cancel() }
+    }
 
     // Rate limiting countdown timer persisting across rebuilds/rotations
     LaunchedEffect(lockoutSecondsRemaining) {
@@ -131,7 +188,7 @@ fun LockScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Enter your 6-digit PIN",
+                text = if (fingerprintReady) "Use your fingerprint or enter your 6-digit PIN" else "Enter your 6-digit PIN",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -207,6 +264,19 @@ fun LockScreen(
                 },
                 modifier = Modifier.testTag("lock_pin_keypad")
             )
+
+            if (fingerprintReady) {
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(
+                    onClick = { askForFingerprint() },
+                    modifier = Modifier.testTag("lock_fingerprint_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Use fingerprint")
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 

@@ -12,6 +12,7 @@ import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.state.MainTab
 import com.janreins.piso.ui.state.MoreSubScreen
+import com.janreins.piso.util.FingerprintAuth
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -65,6 +66,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun unlockApp(pin: String): Boolean {
         return profileManager.unlock(pin)
+    }
+
+    /** Called after the phone confirmed a fingerprint on the lock screen. */
+    fun unlockWithFingerprint(): Boolean = profileManager.unlockWithFingerprint()
+
+    /** The phone's fingerprints changed, so fingerprint unlock is off until it is turned on again. */
+    fun onFingerprintsChanged() {
+        profileManager.setFingerprintUnlock(false)
+        FingerprintAuth.deleteKey()
+        showMessage("Fingerprints on this phone changed, so fingerprint unlock is off. Use your PIN, then turn it on again in Settings.")
     }
 
     fun lockApp() {
@@ -126,6 +137,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repository.clearAllData(keepUndo = false)
             withContext(Dispatchers.IO) { backupSafety.deleteAllBestEffort() }
             profileManager.clearProfile()
+            FingerprintAuth.deleteKey()
             BackupReminderStore.getInstance(getApplication()).clear()
             _currentTab.value = MainTab.HOME
             _moreSubScreen.value = null
