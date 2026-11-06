@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
@@ -56,9 +57,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -88,6 +91,8 @@ import com.janreins.piso.ui.components.PisoTopBar
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.util.FingerprintAuth
+import com.janreins.piso.util.FingerprintOutcome
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -344,6 +349,45 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Remove PIN", fontSize = 13.sp)
                             }
+                        }
+
+                        if (FingerprintAuth.isSupported()) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            FingerprintUnlockRow(
+                                isOn = userProfile.fingerprintUnlock,
+                                onTurnOn = { onDone ->
+                                    if (!FingerprintAuth.canUse(context)) {
+                                        viewModel.showMessage(FingerprintAuth.unavailableReason())
+                                        onDone(null)
+                                    } else if (!FingerprintAuth.createKey()) {
+                                        viewModel.showMessage("Couldn't set up fingerprint unlock on this phone.")
+                                        onDone(null)
+                                    } else {
+                                        onDone(
+                                            FingerprintAuth.authenticate(
+                                                context = context,
+                                                title = "Turn on fingerprint unlock",
+                                                subtitle = "Touch the fingerprint sensor to confirm",
+                                                negativeText = "Cancel"
+                                            ) { outcome ->
+                                                when (outcome) {
+                                                    FingerprintOutcome.Success -> viewModel.setFingerprintUnlock(true)
+                                                    FingerprintOutcome.Cancelled -> FingerprintAuth.deleteKey()
+                                                    FingerprintOutcome.FingerprintsChanged -> {
+                                                        FingerprintAuth.deleteKey()
+                                                        viewModel.showMessage("Couldn't confirm the fingerprint. Try again.")
+                                                    }
+                                                    is FingerprintOutcome.Error -> {
+                                                        FingerprintAuth.deleteKey()
+                                                        viewModel.showMessage(outcome.message)
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
+                                },
+                                onTurnOff = { viewModel.setFingerprintUnlock(false) }
+                            )
                         }
                     } else {
                         Button(
@@ -1485,5 +1529,59 @@ private fun ThemeOptionItem(
                 color = if (isSelected) TealPrimary else MaterialTheme.colorScheme.onSurface
             )
         }
+    }
+}
+
+/**
+ * The "Unlock with fingerprint" switch. Turning it on asks for a fingerprint first, so it is
+ * only on once the phone has confirmed one works. [onTurnOn] starts that check and hands back
+ * the signal that can close it.
+ */
+@Composable
+private fun FingerprintUnlockRow(
+    isOn: Boolean,
+    onTurnOn: (onDone: (android.os.CancellationSignal?) -> Unit) -> Unit,
+    onTurnOff: () -> Unit
+) {
+    var signal by remember { mutableStateOf<android.os.CancellationSignal?>(null) }
+    DisposableEffect(Unit) {
+        onDispose { signal?.cancel() }
+    }
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Fingerprint,
+                contentDescription = null,
+                tint = if (isOn) TealPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Unlock with fingerprint",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = isOn,
+                onCheckedChange = { wantOn ->
+                    if (wantOn) {
+                        signal?.cancel()
+                        onTurnOn { signal = it }
+                    } else {
+                        onTurnOff()
+                    }
+                },
+                modifier = Modifier.testTag("fingerprint_unlock_switch")
+            )
+        }
+        Text(
+            text = "Your PIN still works, and Piso asks for it if the fingerprint fails. Any fingerprint saved on this phone can open Piso. If a fingerprint is added, Piso turns this off until you turn it on again.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 16.sp
+        )
     }
 }

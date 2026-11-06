@@ -18,6 +18,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 - **Also done:** B15 adds credit card purchases that count as spending when bought and raise what's owed on the card (database version 6, D6 settled: per card switch, PR #22).
 - **Also done:** B16 lets Jan buy or sell investments from an account without counting it as spending or income (database version 7, PR #23).
 - **In progress:** B17 lets Jan protect a backup file with a password (no database change). It is in review.
+- **In progress:** B18 adds fingerprint unlock, with the PIN kept as the way in (no database change). It is built and waits for B17 to merge.
 - **Not released:** v1.0.3 doesn't have B5 onwards yet.
 
 ## Status table
@@ -44,6 +45,7 @@ Piso is Jan's private, offline personal finance tracker for Android, covering ac
 | B15 | `claude/project-thread-vkg33n` | U12 credit card purchases (database version 6, D6) | Merged, PR #22, `1c6ab40` | [batch15](handoffs/batch15-card-purchases.md) |
 | B16 | `claude/project-thread-vkg33n` | U13 investments bought or sold from an account (database version 7) | Merged, PR #23, `4c250c1` | [batch16](handoffs/batch16-investment-moves.md) |
 | B17 | `claude/project-thread-vkg33n` | U14 password-protected backup file (no schema change) | In review | [batch17](handoffs/batch17-backup-password.md) |
+| B18 | `claude/project-thread-vkg33n` | U15 fingerprint unlock (no schema change) | In review | [batch18](handoffs/batch18-fingerprint-unlock.md) |
 
 B1 to B4 ran in the order B3, B1, B2, B4. B7 goes before B8, because B8 reuses B7's date field.
 
@@ -91,6 +93,7 @@ Review 1 (October 2026, [review-1](reviews/review-1-2026-10.md)), review 2 (2026
 | U12 | UX | Credit card purchases that count as spending and raise what's owed on the card | Fixed in B15 |
 | U13 | UX | Buy or sell an investment from an account without it counting as spending or income | Fixed in B16 |
 | U14 | UX | Backup files can be read by anyone once they leave the phone; add an optional password | B17, in review |
+| U15 | UX | Typing the PIN every time is slow; add fingerprint unlock with the PIN kept as the way in | B18, in review |
 | U5 | UX | Activity says "Change this from the Goals tab" (or Debts), but neither tab can change a past move | Fixed in B7 (copy only) |
 
 ## Decisions Jan owes
@@ -106,8 +109,7 @@ Each pack uses the default below unless Jan says otherwise.
 ## Later ideas (not scheduled)
 P12 PBKDF2 for the PIN hash.
 
-From review 3 (2026-11-06), for Jan to pick later:
-- Fingerprint unlock (M, lock code, needs its own pack and tests).
+Review 3's shortlist (2026-11-06) is all scheduled (B14 to B18).
 
 ## Cut list
 - **P17 time zone:** Jan lives in Manila, and the change would alter how dates are stored.
@@ -124,6 +126,7 @@ From review 3 (2026-11-06), for Jan to pick later:
 ## Open verification (Jan's phone checks)
 - No phone checks are recorded for v1.0.3 lock behaviour (picker return, Home during a picker, Share Backup relock). Report them if done.
 - After B5: RESET on the lock screen, then set up with no PIN. Settings must not show Undo restore.
+- After B18 (once released): see the phone checks in [batch18](handoffs/batch18-fingerprint-unlock.md).
 - After B17 (once released): see the phone checks in [batch17](handoffs/batch17-backup-password.md).
 - After B16 (once released): see the phone checks in [batch16](handoffs/batch16-investment-moves.md).
 - After B15 (once released): see the phone checks in [batch15](handoffs/batch15-card-purchases.md).
