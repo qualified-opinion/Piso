@@ -64,6 +64,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,6 +114,9 @@ fun SettingsScreen(
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var showExportTextDialog by remember { mutableStateOf<String?>(null) }
     var showImportTextDialog by remember { mutableStateOf(false) }
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    // Survives the file picker: if the password is lost meanwhile, nothing is saved in the clear.
+    var exportProtected by rememberSaveable { mutableStateOf(false) }
 
     var pendingUndo by remember { mutableStateOf<UndoRestoreInfo?>(null) }
     val backupImportState by viewModel.backupImportState.collectAsStateWithLifecycle()
@@ -122,9 +126,11 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.exportBackup { jsonString ->
-                viewModel.writeExport(jsonString) { context.contentResolver.openOutputStream(uri) }
+            viewModel.exportBackupFile(expectProtected = exportProtected) { text ->
+                viewModel.writeExport(text) { context.contentResolver.openOutputStream(uri) }
             }
+        } else {
+            viewModel.setPendingExportPassword(null)
         }
     }
 
@@ -522,11 +528,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Button(
-                            onClick = {
-                                val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                val filename = "Piso_Backup_$dateStr.json"
-                                viewModel.launchPicker { createDocLauncher.launch(filename) }
-                            },
+                            onClick = { showExportPasswordDialog = true },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
@@ -1166,6 +1168,31 @@ fun SettingsScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // Backup file: ask for an optional password, then pick where to save it
+    if (showExportPasswordDialog) {
+        ExportPasswordDialog(
+            onDismiss = { showExportPasswordDialog = false },
+            onSave = { password ->
+                showExportPasswordDialog = false
+                viewModel.setPendingExportPassword(password)
+                exportProtected = password != null
+                val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                val filename = if (password != null) "Piso_Backup_${dateStr}_protected.json" else "Piso_Backup_$dateStr.json"
+                viewModel.launchPicker { createDocLauncher.launch(filename) }
+            }
+        )
+    }
+
+    // A password-protected backup was picked (file or pasted text): ask for its password
+    if (backupImportState.needsPassword) {
+        UnlockBackupDialog(
+            isLoading = backupImportState.isLoading,
+            error = backupImportState.error,
+            onUnlock = viewModel::unlockBackup,
+            onDismiss = viewModel::dismissBackupPreview
         )
     }
 

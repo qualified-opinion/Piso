@@ -16,6 +16,7 @@ import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.data.repository.UndoRestoreInfo
+import com.janreins.piso.util.BackupCrypto
 import com.janreins.piso.util.CsvExporter
 import com.janreins.piso.util.ExportWriter
 import java.io.ByteArrayOutputStream
@@ -44,9 +45,27 @@ import kotlinx.coroutines.withContext
 data class BackupImportState(
     val data: BackupData? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    // A password-protected backup waiting for its password; held only until it's unlocked or dismissed.
+    val lockedText: String? = null
 ) {
     val summary: BackupSummary? = data?.summary
+    val needsPassword: Boolean get() = lockedText != null
+}
+
+/** Reads backup text that isn't password-protected, or explains why it can't be restored. */
+internal fun parseBackupText(text: String): BackupImportState {
+    val data = BackupData.fromJsonString(text)
+    return if (data == null) BackupImportState(error = "This is not a valid Piso backup.") else BackupImportState(data = data)
+}
+
+/** Unlocks a password-protected backup and reads it. Wrong password keeps it locked with a message. */
+internal fun unlockBackupText(lockedText: String, password: CharArray): BackupImportState = try {
+    parseBackupText(BackupCrypto.decrypt(lockedText, password))
+} catch (_: BackupCrypto.WrongPasswordException) {
+    BackupImportState(lockedText = lockedText, error = "Wrong password, or the file was changed. Try again.")
+} catch (_: IllegalArgumentException) {
+    BackupImportState(error = "This protected backup is damaged or from a newer Piso.")
 }
 
 private const val MAX_BACKUP_BYTES = 20 * 1024 * 1024
@@ -216,10 +235,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             if (bytes.size() + count > MAX_BACKUP_BYTES) throw BackupTooLargeException()
                             bytes.write(buffer, 0, count)
                         }
-                        BackupData.fromJsonString(bytes.toString(Charsets.UTF_8.name()))
+                        bytes.toString(Charsets.UTF_8.name())
                     }
-                    if (data == null) BackupImportState(error = "This is not a valid Piso backup.")
-                    else BackupImportState(data = data)
+                    when {
+                        data == null -> BackupImportState(error = "This is not a valid Piso backup.")
+                        BackupCrypto.isEncrypted(data) -> BackupImportState(lockedText = data)
+                        else -> parseBackupText(data)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: BackupTooLargeException) {
@@ -230,6 +252,57 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             _backupImportState.value = preview
             preview.error?.let { showMessage(it) }
+        }
+    }
+
+    /** Tries [password] on the protected backup being reviewed. The password is wiped after use. */
+    fun unlockBackup(password: CharArray) {
+        val locked = _backupImportState.value.lockedText ?: return
+        reviewJob?.cancel()
+        _backupImportState.value = BackupImportState(isLoading = true, lockedText = locked)
+        reviewJob = viewModelScope.launch {
+            val result = try {
+                withContext(Dispatchers.Default) { unlockBackupText(locked, password) }
+            } finally {
+                password.fill('\u0000')
+            }
+            _backupImportState.value = result
+        }
+    }
+
+    // A password chosen for the next backup file. Held only from the password dialog to the save.
+    private var pendingExportPassword: CharArray? = null
+
+    fun setPendingExportPassword(password: CharArray?) {
+        pendingExportPassword?.fill('\u0000')
+        pendingExportPassword = password
+    }
+
+    /**
+     * Builds the next backup file's text, protected with the pending password if one was set.
+     * If [expectProtected] but the password is gone (the app was closed in between), nothing is
+     * written, so a backup Jan meant to protect is never saved in the clear.
+     */
+    fun exportBackupFile(expectProtected: Boolean, onSuccess: (String) -> Unit) {
+        val password = pendingExportPassword
+        pendingExportPassword = null
+        if (expectProtected && password == null) {
+            showMessage("Backup not saved. Choose Export File and enter the password again.")
+            return
+        }
+        viewModelScope.launch {
+            val text = try {
+                val json = repository.exportBackupJson()
+                if (password == null) json else withContext(Dispatchers.Default) { BackupCrypto.encrypt(json, password) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showMessage("Couldn't create backup")
+                return@launch
+            } finally {
+                password?.fill('\u0000')
+            }
+            onSuccess(text)
         }
     }
 
