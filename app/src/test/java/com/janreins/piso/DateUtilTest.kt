@@ -3,6 +3,7 @@ package com.janreins.piso
 import com.janreins.piso.util.DateUtil
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -14,6 +15,16 @@ class DateUtilTest {
         assertEquals("2026-01", DateUtil.shiftMonthKey("2025-12", 1))
         assertEquals("2025-12", DateUtil.shiftMonthKey("2026-01", -1))
         assertEquals("September 2026", DateUtil.getMonthDisplayName("2026-09"))
+    }
+
+    @Test
+    fun dayHeader_saysTodayYesterdayOrTheDate() {
+        val today = LocalDate.of(2026, 11, 9).toEpochDay()
+        assertEquals("Today", DateUtil.formatDayHeader(today, today))
+        assertEquals("Yesterday", DateUtil.formatDayHeader(today - 1, today))
+        assertEquals("Tue, Nov 3", DateUtil.formatDayHeader(LocalDate.of(2026, 11, 3).toEpochDay(), today))
+        // A day in another year shows the year too
+        assertEquals("Wed, Dec 31, 2025", DateUtil.formatDayHeader(LocalDate.of(2025, 12, 31).toEpochDay(), today))
     }
 
     @Test

@@ -338,7 +338,7 @@ fun LockScreen(
             },
             title = {
                 Text(
-                    text = "Reset Piso & Clear All Data?",
+                    text = "Reset Piso and clear all data?",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
             },

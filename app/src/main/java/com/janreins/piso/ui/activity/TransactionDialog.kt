@@ -54,6 +54,9 @@ import com.janreins.piso.ui.settings.CategoryInputDialog
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
+import com.janreins.piso.ui.theme.OnIncomeGreen
+import com.janreins.piso.ui.theme.OnExpenseRed
 import com.janreins.piso.util.CurrencyUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -177,7 +180,11 @@ fun TransactionDialog(
                                     "EXPENSE" -> ExpenseRed
                                     else -> TealPrimary
                                 },
-                                selectedLabelColor = androidx.compose.ui.graphics.Color.White
+                                selectedLabelColor = when (typeKey) {
+                                    "INCOME" -> OnIncomeGreen
+                                    "EXPENSE" -> OnExpenseRed
+                                    else -> OnTealPrimary
+                                }
                             ),
                             modifier = Modifier.weight(1f)
                         )

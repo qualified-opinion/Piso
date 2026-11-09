@@ -13,6 +13,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -206,6 +208,7 @@ data class NavigationTabItem(
     val testTag: String
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PisoApp(
     appViewModel: AppViewModel = viewModel(),
@@ -317,6 +320,9 @@ fun PisoApp(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                // Each screen has its own Scaffold and top bar. Without this, they add the status
+                // bar and navigation bar space a second time, leaving a blank band at the top.
+                .consumeWindowInsets(innerPadding)
         ) {
             // Check if user is inside a More sub-screen
             if (moreSubScreen != null) {

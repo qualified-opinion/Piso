@@ -18,8 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -47,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,6 +67,9 @@ import com.janreins.piso.ui.theme.IncomeContainer
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
+import com.janreins.piso.ui.theme.OnIncomeGreen
+import com.janreins.piso.ui.theme.OnExpenseRed
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.DateUtil
 
@@ -118,34 +125,26 @@ fun ActivityScreen(
         )
     }
 
+    // The list is shown day by day; the order inside each day stays newest first.
+    val dayGroups = remember(filteredTransactions) {
+        filteredTransactions.groupBy { DateUtil.toEpochDay(it.dateMillis) }.toList()
+    }
+    val todayEpochDay = DateUtil.todayEpochDay()
+
     Scaffold(
         modifier = modifier.testTag("activity_screen"),
         topBar = {
-            PisoTopBar(
-                title = "Activity",
-                actions = {
-                    IconButton(
-                        onClick = { showAddDialog = true },
-                        modifier = Modifier.testTag("activity_add_header_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Transaction",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            )
+            PisoTopBar(title = "Activity")
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.testTag("activity_fab"),
                 containerColor = TealPrimary,
-                contentColor = Color.White,
+                contentColor = OnTealPrimary,
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Add transaction")
             }
         }
     ) { innerPadding ->
@@ -169,7 +168,7 @@ fun ActivityScreen(
                     },
                     modifier = Modifier.testTag("prev_month_button")
                 ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Month")
+                    Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
                 }
 
                 Text(
@@ -185,7 +184,7 @@ fun ActivityScreen(
                     },
                     modifier = Modifier.testTag("next_month_button")
                 ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Month")
+                    Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
                 }
             }
 
@@ -213,10 +212,13 @@ fun ActivityScreen(
                             selectedContainerColor = when (key) {
                                 "INCOME" -> IncomeGreen
                                 "EXPENSE" -> ExpenseRed
-                                "TRANSFER" -> TealPrimary
-                                else -> MaterialTheme.colorScheme.primary
+                                else -> TealPrimary
                             },
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = when (key) {
+                                "INCOME" -> OnIncomeGreen
+                                "EXPENSE" -> OnExpenseRed
+                                else -> OnTealPrimary
+                            }
                         )
                     )
                 }
@@ -323,149 +325,156 @@ fun ActivityScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredTransactions, key = { it.id }) { tx ->
-                        val accountName = tx.accountId?.let { accountsMap[it]?.name }
-                        val toAccountName = tx.transferToId?.let { accountsMap[it]?.name }
-                        val isGoalTransfer = tx.type == "TRANSFER" && (tx.goalId != null || tx.goalFlow != null)
+                    dayGroups.forEach { (epochDay, dayTransactions) ->
+                        // One heading per day ("Today", "Yesterday", "Tue, Nov 3"), newest day first
+                        item(key = "day_$epochDay") {
+                            Text(
+                                text = DateUtil.formatDayHeader(epochDay, todayEpochDay),
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .padding(start = 4.dp, top = 8.dp)
+                                    .semantics { heading() }
+                            )
+                        }
+                        items(dayTransactions, key = { it.id }) { tx ->
+                            val accountName = tx.accountId?.let { accountsMap[it]?.name }
+                            val toAccountName = tx.transferToId?.let { accountsMap[it]?.name }
+                            val isGoalTransfer = tx.type == "TRANSFER" && (tx.goalId != null || tx.goalFlow != null)
 
-                        PisoCard(
-                            contentPadding = 14.dp,
-                            onClick = {
-                                if (tx.goalId != null || tx.goalFlow != null) {
-                                    viewModel.showMessage("To change this, delete it here and add it again from Goals")
-                                } else if (tx.debtId != null) {
-                                    viewModel.showMessage("To change this, delete it here and record it again from Debts")
-                                } else if (tx.investmentId != null) {
-                                    viewModel.showMessage("To change this, delete it here and record it again from Invest")
-                                } else if (tx.type == "ADJUSTMENT") {
-                                    viewModel.showMessage("To change this, delete it and adjust again")
-                                } else {
-                                    transactionToEdit = tx
+                            PisoCard(
+                                contentPadding = 14.dp,
+                                onClick = {
+                                    if (tx.goalId != null || tx.goalFlow != null) {
+                                        viewModel.showMessage("To change this, delete it here and add it again from Goals")
+                                    } else if (tx.debtId != null) {
+                                        viewModel.showMessage("To change this, delete it here and record it again from Debts")
+                                    } else if (tx.investmentId != null) {
+                                        viewModel.showMessage("To change this, delete it here and record it again from Invest")
+                                    } else if (tx.type == "ADJUSTMENT") {
+                                        viewModel.showMessage("To change this, delete it and adjust again")
+                                    } else {
+                                        transactionToEdit = tx
+                                    }
                                 }
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                when (tx.type) {
-                                                    "INCOME" -> IncomeContainer
-                                                    "EXPENSE" -> ExpenseContainer
-                                                    else -> TealContainer
-                                                }
-                                            ),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(
-                                            imageVector = when (tx.type) {
-                                                "INCOME" -> Icons.Default.ArrowDownward
-                                                "EXPENSE" -> Icons.Default.ArrowUpward
-                                                else -> Icons.Default.ReceiptLong
-                                            },
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp),
-                                            tint = when (tx.type) {
-                                                "INCOME" -> IncomeGreen
-                                                "EXPENSE" -> ExpenseRed
-                                                else -> TealPrimary
-                                            }
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            text = if (tx.type == "TRANSFER") {
-                                                if (isGoalTransfer) {
-                                                    // Goal contributions: money set aside or moved to the goal's account
-                                                    val label = if (tx.goalFlow == "OUT") "From savings" else "Savings"
-                                                    if (accountName != null && toAccountName != null && tx.accountId != tx.transferToId) {
-                                                        "$label: $accountName → $toAccountName"
-                                                    } else {
-                                                        label
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    when (tx.type) {
+                                                        "INCOME" -> IncomeContainer
+                                                        "EXPENSE" -> ExpenseContainer
+                                                        else -> TealContainer
                                                     }
-                                                } else if (tx.investmentId != null) {
-                                                    if (tx.transferToId != null) "Investment sold" else "Investment bought"
-                                                } else if (tx.debtId != null) {
-                                                    // A payment to a card whose purchases are recorded
-                                                    tx.category.ifBlank { CARD_PAYMENT_CATEGORY }
-                                                } else if (accountName != null && toAccountName != null) {
-                                                    "$accountName → $toAccountName"
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = when (tx.type) {
+                                                    "INCOME" -> Icons.Default.ArrowDownward
+                                                    "EXPENSE" -> Icons.Default.ArrowUpward
+                                                    "ADJUSTMENT" -> Icons.Default.Tune
+                                                    else -> Icons.Default.SwapHoriz
+                                                },
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp),
+                                                tint = when (tx.type) {
+                                                    "INCOME" -> IncomeGreen
+                                                    "EXPENSE" -> ExpenseRed
+                                                    else -> TealPrimary
+                                                }
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = if (tx.type == "TRANSFER") {
+                                                    if (isGoalTransfer) {
+                                                        // Goal contributions: money set aside or moved to the goal's account
+                                                        val label = if (tx.goalFlow == "OUT") "From savings" else "Savings"
+                                                        if (accountName != null && toAccountName != null && tx.accountId != tx.transferToId) {
+                                                            "$label: $accountName → $toAccountName"
+                                                        } else {
+                                                            label
+                                                        }
+                                                    } else if (tx.investmentId != null) {
+                                                        if (tx.transferToId != null) "Investment sold" else "Investment bought"
+                                                    } else if (tx.debtId != null) {
+                                                        // A payment to a card whose purchases are recorded
+                                                        tx.category.ifBlank { CARD_PAYMENT_CATEGORY }
+                                                    } else if (accountName != null && toAccountName != null) {
+                                                        "$accountName → $toAccountName"
+                                                    } else {
+                                                        "Transfer"
+                                                    }
                                                 } else {
-                                                    "Transfer"
-                                                }
-                                            } else {
-                                                tx.category.ifBlank { tx.type }
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                                        )
-                                        Text(
-                                            text = buildString {
-                                                if (tx.type != "TRANSFER" && tx.subcategory.isNotBlank()) {
-                                                    append(tx.subcategory)
-                                                    append(" · ")
-                                                }
-                                                append(DateUtil.formatDate(tx.dateMillis))
-                                                // An adjustment that adds money only has the "to" side filled in
-                                                val oneSided = tx.type == "ADJUSTMENT" || tx.investmentId != null
-                                                val shownAccount = if (oneSided) accountName ?: toAccountName else accountName
-                                                val showsAccount = tx.type != "TRANSFER" ||
-                                                    (isGoalTransfer && tx.accountId == tx.transferToId) ||
-                                                    tx.debtId != null || tx.investmentId != null
-                                                if (shownAccount != null && showsAccount) {
-                                                    append(" · ")
-                                                    append(shownAccount)
-                                                }
-                                                if (tx.isCardPurchase) append(" · Credit card")
-                                                if (tx.note.isNotBlank()) {
-                                                    append(" · ")
-                                                    append(tx.note)
-                                                }
-                                                if (tx.recurringId != null) append(" · Recurring")
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = when (tx.type) {
-                                            "INCOME" -> "+${CurrencyUtil.formatPeso(tx.amount)}"
-                                            "EXPENSE" -> "-${CurrencyUtil.formatPeso(tx.amount)}"
-                                            "ADJUSTMENT" -> (if (tx.transferToId != null) "+" else "-") + CurrencyUtil.formatPeso(tx.amount)
-                                            else -> CurrencyUtil.formatPeso(tx.amount)
-                                        },
-                                        style = MaterialTheme.typography.titleSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = when (tx.type) {
-                                                "INCOME" -> IncomeGreen
-                                                "EXPENSE" -> ExpenseRed
-                                                else -> MaterialTheme.colorScheme.onSurface
+                                                    tx.category.ifBlank { tx.type }
+                                                },
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                                            )
+                                            // An adjustment that adds money only has the "to" side filled in
+                                            val oneSided = tx.type == "ADJUSTMENT" || tx.investmentId != null
+                                            val shownAccount = if (oneSided) accountName ?: toAccountName else accountName
+                                            val showsAccount = tx.type != "TRANSFER" ||
+                                                (isGoalTransfer && tx.accountId == tx.transferToId) ||
+                                                tx.debtId != null || tx.investmentId != null
+                                            val details = listOfNotNull(
+                                                tx.subcategory.takeIf { tx.type != "TRANSFER" && it.isNotBlank() },
+                                                shownAccount?.takeIf { showsAccount },
+                                                "Credit card".takeIf { tx.isCardPurchase },
+                                                tx.note.takeIf { it.isNotBlank() },
+                                                "Recurring".takeIf { tx.recurringId != null }
+                                            ).joinToString(" · ")
+                                            if (details.isNotEmpty()) {
+                                                Text(
+                                                    text = details,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
                                             }
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = when (tx.type) {
+                                                "INCOME" -> "+${CurrencyUtil.formatPeso(tx.amount)}"
+                                                "EXPENSE" -> "-${CurrencyUtil.formatPeso(tx.amount)}"
+                                                "ADJUSTMENT" -> (if (tx.transferToId != null) "+" else "-") + CurrencyUtil.formatPeso(tx.amount)
+                                                else -> CurrencyUtil.formatPeso(tx.amount)
+                                            },
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = when (tx.type) {
+                                                    "INCOME" -> IncomeGreen
+                                                    "EXPENSE" -> ExpenseRed
+                                                    else -> MaterialTheme.colorScheme.onSurface
+                                                }
+                                            )
                                         )
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    IconButton(
-                                        onClick = { transactionToDelete = tx },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete",
-                                            tint = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        IconButton(
+                                            onClick = { transactionToDelete = tx },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -531,7 +540,7 @@ fun ActivityScreen(
     // --- Delete Confirmation Dialog ---
     transactionToDelete?.let { txToDelete ->
         ConfirmDialog(
-            title = "Delete Transaction?",
+            title = "Delete transaction?",
             message = "Are you sure you want to delete this ${txToDelete.type.lowercase()} of ${CurrencyUtil.formatPeso(txToDelete.amount)}? Account balances will be updated.",
             confirmText = "Delete",
             isDestructive = true,

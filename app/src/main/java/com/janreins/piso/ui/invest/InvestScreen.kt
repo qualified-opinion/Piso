@@ -38,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +51,7 @@ import com.janreins.piso.ui.components.PisoTopBar
 import com.janreins.piso.ui.theme.IncomeContainer
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.DateUtil
 
@@ -101,7 +101,7 @@ fun InvestScreen(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.testTag("invest_fab"),
                 containerColor = TealPrimary,
-                contentColor = Color.White,
+                contentColor = OnTealPrimary,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Investment")
@@ -122,7 +122,7 @@ fun InvestScreen(
                     contentPadding = 20.dp
                 ) {
                     Text(
-                        text = "Total Portfolio Value",
+                        text = "Total portfolio value",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
@@ -333,7 +333,7 @@ fun InvestScreen(
     // --- Delete Confirmation Dialog ---
     investmentToDelete?.let { invToDelete ->
         ConfirmDialog(
-            title = "Delete Investment?",
+            title = "Delete investment?",
             message = "Are you sure you want to delete ${invToDelete.name}? Its buys and sales stay in Activity as transfers, and your accounts don't change.",
             confirmText = "Delete",
             isDestructive = true,

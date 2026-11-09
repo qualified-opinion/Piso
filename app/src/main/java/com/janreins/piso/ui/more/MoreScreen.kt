@@ -28,11 +28,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,6 +63,12 @@ fun MoreScreen(
     val investments = uiState.investments
     val totalInvestments = uiState.totalInvestments
     val totalDebtsRemaining = uiState.totalDebtsRemaining
+    // The real installed version (it used to say "1.0" whatever was installed)
+    val context = LocalContext.current
+    val versionName = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull() ?: "1.0"
+    }
 
     Scaffold(
         modifier = modifier.testTag("more_screen"),
@@ -78,7 +86,7 @@ fun MoreScreen(
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Financial Planning",
+                    text = "Planning",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -153,7 +161,7 @@ fun MoreScreen(
             item {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Preferences & Data",
+                    text = "Settings and data",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -191,7 +199,7 @@ fun MoreScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Version 1.0 · 100% Offline & Private",
+                        text = "Version $versionName · Offline and private",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
