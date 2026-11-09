@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +42,7 @@ import com.janreins.piso.ui.components.PisoTopBar
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.DateUtil
 import com.janreins.piso.util.RecurringSchedule
@@ -76,7 +76,7 @@ fun RecurringScreen(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.testTag("recurring_fab"),
                 containerColor = TealPrimary,
-                contentColor = Color.White,
+                contentColor = OnTealPrimary,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Recurring")

@@ -95,6 +95,23 @@ object DateUtil {
     fun epochDayToMillis(epochDay: Long): Long =
         LocalDate.ofEpochDay(epochDay).atTime(12, 0).atZone(zone()).toInstant().toEpochMilli()
 
+    private val dayHeaderFormat = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US)
+    private val dayHeaderWithYearFormat = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.US)
+
+    /**
+     * Heading for one day in the Activity list: "Today", "Yesterday", "Mon, Nov 3", or with the
+     * year ("Mon, Nov 3, 2025") when the day is in another year than [todayEpochDay].
+     */
+    fun formatDayHeader(epochDay: Long, todayEpochDay: Long): String {
+        val date = LocalDate.ofEpochDay(epochDay)
+        return when {
+            epochDay == todayEpochDay -> "Today"
+            epochDay == todayEpochDay - 1 -> "Yesterday"
+            date.year == LocalDate.ofEpochDay(todayEpochDay).year -> dayHeaderFormat.format(date)
+            else -> dayHeaderWithYearFormat.format(date)
+        }
+    }
+
     /** Formats an epoch day like [formatDate], e.g. "Sep 1, 2026". */
     fun formatEpochDay(epochDay: Long): String = fullDateFormat.format(LocalDate.ofEpochDay(epochDay))
 

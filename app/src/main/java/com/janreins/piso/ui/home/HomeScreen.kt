@@ -19,8 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
@@ -40,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +58,8 @@ import com.janreins.piso.ui.theme.IncomeContainer
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnIncomeGreen
+import com.janreins.piso.ui.theme.OnExpenseRed
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.DateUtil
 
@@ -189,7 +193,7 @@ fun HomeScreen(
                 contentPadding = 22.dp
             ) {
                 Text(
-                    text = "Net Worth",
+                    text = "Net worth",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -210,62 +214,83 @@ fun HomeScreen(
             }
         }
 
+        // --- Add income / Add expense: the most used actions, kept near the top ---
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { onOpenAddTransaction("INCOME") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .testTag("home_add_income_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = IncomeGreen,
+                        contentColor = OnIncomeGreen
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Add income",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Button(
+                    onClick = { onOpenAddTransaction("EXPENSE") },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .testTag("home_add_expense_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ExpenseRed,
+                        contentColor = OnExpenseRed
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TrendingDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Add expense",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
         // --- This Month Card ---
         item {
             PisoCard(contentPadding = 18.dp) {
                 Text(
-                    text = "This Month ($currentMonthName)",
+                    text = "This month",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Net",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = CurrencyUtil.formatPeso(monthSummary.net),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = if (monthSummary.net >= 0) IncomeGreen else ExpenseRed
-                            )
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Income",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = CurrencyUtil.formatPeso(monthSummary.income),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = IncomeGreen
-                            )
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Spent",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = CurrencyUtil.formatPeso(monthSummary.spent),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = ExpenseRed
-                            )
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(12.dp))
+                // Laid out like a small income statement, so long amounts never wrap
+                MonthStatementLine(label = "Income", amount = monthSummary.income, color = IncomeGreen)
+                MonthStatementLine(label = "Spent", amount = monthSummary.spent, color = ExpenseRed)
+                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                MonthStatementLine(
+                    label = "Net",
+                    amount = monthSummary.net,
+                    color = if (monthSummary.net >= 0) IncomeGreen else ExpenseRed,
+                    emphasized = true
+                )
 
                 // Goal contributions note
                 if (monthSummary.goalMoves > 0) {
@@ -415,64 +440,6 @@ fun HomeScreen(
             }
         }
 
-        // --- Two Large Action Buttons ---
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = { onOpenAddTransaction("INCOME") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .testTag("home_add_income_button"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = IncomeGreen,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.TrendingUp,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Add income",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Button(
-                    onClick = { onOpenAddTransaction("EXPENSE") },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .testTag("home_add_expense_button"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = ExpenseRed,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.TrendingDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Add expense",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-
         // --- Accounts Preview ---
         item {
             PisoCard(
@@ -517,10 +484,13 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            // A long name is cut short with "…" so the amount always shows in full
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                                 Text(
                                     text = account.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = account.kind,
@@ -552,12 +522,12 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Budget Preview",
+                            text = "Budgets this month",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Budgets",
+                                text = "View all",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -580,7 +550,10 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = budget.category,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).padding(end = 12.dp)
                                 )
                                 Text(
                                     text = "${CurrencyUtil.formatPeso(spent)} / ${CurrencyUtil.formatPeso(budget.limitAmount)}",
@@ -612,12 +585,12 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Active Goals",
+                            text = "Goals",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Goals",
+                                text = "View all",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -640,7 +613,10 @@ fun HomeScreen(
                             ) {
                                 Text(
                                     text = goal.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).padding(end = 12.dp)
                                 )
                                 Text(
                                     text = "${CurrencyUtil.formatPeso(goal.currentAmount)} / ${CurrencyUtil.formatPeso(goal.targetAmount)}",
@@ -669,12 +645,12 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Open Debts",
+                            text = "Debts",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Debts",
+                                text = "View all",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -694,10 +670,13 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            // A long name is cut short with "…" so the amount always shows in full
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                                 Text(
                                     text = debt.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = debt.kind,
@@ -737,12 +716,12 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Recent Activity",
+                        text = "Recent activity",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Activity",
+                            text = "View all",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -791,7 +770,8 @@ fun HomeScreen(
                                         imageVector = when (tx.type) {
                                             "INCOME" -> Icons.Default.ArrowDownward
                                             "EXPENSE" -> Icons.Default.ArrowUpward
-                                            else -> Icons.Default.ReceiptLong
+                                            "ADJUSTMENT" -> Icons.Default.Tune
+                                            else -> Icons.Default.SwapHoriz
                                         },
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp),
@@ -808,6 +788,7 @@ fun HomeScreen(
                                         text = when {
                                             tx.type == "TRANSFER" && (tx.goalId != null || tx.goalFlow != null) -> "Savings"
                                             tx.type == "TRANSFER" -> "Transfer"
+                                            tx.type == "ADJUSTMENT" -> tx.category.ifBlank { "Balance adjustment" }
                                             else -> tx.category.ifBlank { tx.type }
                                         },
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
@@ -847,5 +828,41 @@ fun HomeScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+/** One line of the "This month" card: a label on the left and its amount on the right. */
+@Composable
+private fun MonthStatementLine(
+    label: String,
+    amount: Double,
+    color: Color,
+    emphasized: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = if (emphasized) {
+                MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            } else {
+                MaterialTheme.typography.bodyLarge
+            },
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = CurrencyUtil.formatPeso(amount),
+            style = if (emphasized) {
+                MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            } else {
+                MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            },
+            color = color
+        )
     }
 }

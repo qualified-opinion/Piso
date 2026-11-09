@@ -72,7 +72,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -91,6 +90,7 @@ import com.janreins.piso.ui.components.PisoTopBar
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
 import com.janreins.piso.util.FingerprintAuth
 import com.janreins.piso.util.FingerprintOutcome
 import java.text.SimpleDateFormat
@@ -181,7 +181,7 @@ fun SettingsScreen(
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Offline Account",
+                    text = "Profile",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -206,7 +206,7 @@ fun SettingsScreen(
                             Text(
                                 text = userProfile.displayName.take(1).uppercase(),
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
+                                color = OnTealPrimary
                             )
                         }
 
@@ -261,7 +261,7 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = TealPrimary,
-                                contentColor = Color.White
+                                contentColor = OnTealPrimary
                             )
                         ) {
                             Icon(imageVector = Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -275,7 +275,7 @@ fun SettingsScreen(
             // --- Section 2: 6-Digit PIN Security ---
             item {
                 Text(
-                    text = "Security & PIN Lock",
+                    text = "Security and PIN lock",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -399,12 +399,12 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = TealPrimary,
-                                contentColor = Color.White
+                                contentColor = OnTealPrimary
                             )
                         ) {
                             Icon(imageVector = Icons.Default.Password, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Set 6-Digit PIN")
+                            Text("Set 6-digit PIN")
                         }
                     }
 
@@ -518,7 +518,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Manage Categories",
+                                    text = "Manage categories",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                                 )
                                 Text(
@@ -542,7 +542,7 @@ fun SettingsScreen(
             // --- Section 5: Backup & Restore (Real Files + Fallback) ---
             item {
                 Text(
-                    text = "Backup & Restore",
+                    text = "Backup and restore",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -550,7 +550,7 @@ fun SettingsScreen(
 
                 PisoCard(contentPadding = 16.dp) {
                     Text(
-                        text = "File Backup & Import",
+                        text = "Backup file",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
                     )
                     Text(
@@ -580,12 +580,12 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = TealPrimary,
-                                contentColor = Color.White
+                                contentColor = OnTealPrimary
                             )
                         ) {
                             Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Export File", fontSize = 13.sp)
+                            Text("Export file", fontSize = 13.sp)
                         }
 
                         OutlinedButton(
@@ -602,7 +602,7 @@ fun SettingsScreen(
                         ) {
                             Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Import File", fontSize = 13.sp)
+                            Text("Import file", fontSize = 13.sp)
                         }
                     }
 
@@ -622,7 +622,7 @@ fun SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Export Transactions (CSV)", fontSize = 13.sp)
+                        Text("Export transactions (CSV)", fontSize = 13.sp)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -657,13 +657,13 @@ fun SettingsScreen(
                                 },
                                 modifier = Modifier.testTag("export_text_fallback_button")
                             ) {
-                                Text("Copy Text", fontSize = 12.sp)
+                                Text("Copy text", fontSize = 12.sp)
                             }
                             TextButton(
                                 onClick = { showImportTextDialog = true },
                                 modifier = Modifier.testTag("import_text_fallback_button")
                             ) {
-                                Text("Paste Text", fontSize = 12.sp)
+                                Text("Paste text", fontSize = 12.sp)
                             }
                         }
                     }
@@ -673,7 +673,7 @@ fun SettingsScreen(
             // --- Section 5: Danger Zone ---
             item {
                 Text(
-                    text = "Danger Zone",
+                    text = "Danger zone",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = ExpenseRed
                 )
@@ -684,7 +684,7 @@ fun SettingsScreen(
                     contentPadding = 16.dp
                 ) {
                     Text(
-                        text = "Clear All Data",
+                        text = "Clear all data",
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = ExpenseRed
@@ -710,7 +710,7 @@ fun SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Clear All Data", fontWeight = FontWeight.SemiBold)
+                        Text("Clear all data", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(modifier = Modifier.height(32.dp))
@@ -727,7 +727,7 @@ fun SettingsScreen(
 
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
-            title = { Text("Edit Profile Name", style = MaterialTheme.typography.titleLarge) },
+            title = { Text("Edit profile name", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -736,7 +736,7 @@ fun SettingsScreen(
                             newName = it
                             errorMsg = null
                         },
-                        label = { Text("Display Name") },
+                        label = { Text("Display name") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -831,7 +831,7 @@ fun SettingsScreen(
             onDismissRequest = { showSetPinDialog = false },
             title = {
                 Text(
-                    text = if (setPinStep == 1) "Set 6-Digit PIN" else "Confirm 6-Digit PIN",
+                    text = if (setPinStep == 1) "Set 6-digit PIN" else "Confirm 6-Digit PIN",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                 )
             },
@@ -1252,7 +1252,7 @@ fun SettingsScreen(
                     modifier = Modifier.size(28.dp)
                 )
             },
-            title = { Text("Restore Backup?", style = MaterialTheme.typography.titleLarge) },
+            title = { Text("Restore backup?", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Text(
                     text = summary.confirmationText(),
@@ -1300,7 +1300,7 @@ fun SettingsScreen(
     // 6. Clear All Data Confirm Dialog
     if (showClearConfirmDialog) {
         ConfirmDialog(
-            title = "Clear All Data?",
+            title = "Clear all data?",
             message = "This deletes accounts and money records. Your name, PIN, and theme stay. You can undo this once from Settings.",
             confirmText = "Clear Everything",
             isDestructive = true,
@@ -1414,7 +1414,7 @@ internal fun BackupPasteDialog(
                 enabled = !backupImportState.isLoading,
                 modifier = Modifier.testTag("confirm_paste_import_button")
             ) {
-                Text("Review Backup")
+                Text("Review backup")
             }
         },
         dismissButton = {
@@ -1464,7 +1464,7 @@ internal fun BackupTextDialog(
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "This copy is not locked. Anyone with the file can read your amounts. Prefer Export File to a private folder.",
+                    text = "This copy is not locked. Anyone with the file can read your amounts. Prefer Export file to a private folder.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     lineHeight = 16.sp
@@ -1501,7 +1501,7 @@ private fun ThemeOptionItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = if (isSelected) TealPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+    val borderColor = if (isSelected) TealPrimary else MaterialTheme.colorScheme.outlineVariant
     val bgColor = if (isSelected) TealContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
 
     Box(

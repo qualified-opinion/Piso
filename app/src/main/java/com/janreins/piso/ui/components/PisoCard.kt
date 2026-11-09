@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 fun PisoCard(
     modifier: Modifier = Modifier,
     backgroundColor: Color = MaterialTheme.colorScheme.surface,
-    borderColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+    borderColor: Color = MaterialTheme.colorScheme.outlineVariant,
     cornerRadius: Dp = 22.dp,
     elevation: Dp = 0.dp,
     contentPadding: Dp = 16.dp,

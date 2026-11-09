@@ -42,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +54,7 @@ import com.janreins.piso.ui.components.PisoEmptyState
 import com.janreins.piso.ui.components.PisoTopBar
 import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
 import com.janreins.piso.util.CurrencyUtil
 
 @Composable
@@ -105,7 +105,7 @@ fun AccountsScreen(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.testTag("accounts_fab"),
                 containerColor = TealPrimary,
-                contentColor = Color.White,
+                contentColor = OnTealPrimary,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Account")
@@ -362,7 +362,7 @@ fun AccountsScreen(
     // --- Delete Confirmation Dialog ---
     accountToDelete?.let { accToDelete ->
         ConfirmDialog(
-            title = "Delete Account?",
+            title = "Delete account?",
             message = "Are you sure you want to delete ${accToDelete.name}?",
             confirmText = "Delete",
             isDestructive = true,

@@ -55,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -71,6 +70,7 @@ import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.IncomeContainer
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
 
 @Composable
 fun CategoriesScreen(
@@ -267,7 +267,7 @@ fun CategoriesScreen(
     // --- Dialog 2: Rename Category ---
     categoryToRename?.let { cat ->
         CategoryInputDialog(
-            title = "Rename Category",
+            title = "Rename category",
             initialName = cat.name,
             confirmText = "Save",
             onDismiss = { categoryToRename = null },
@@ -308,7 +308,7 @@ fun CategoriesScreen(
     // --- Dialog 4: Rename Subcategory ---
     subcategoryToRename?.let { subcat ->
         CategoryInputDialog(
-            title = "Rename Subcategory",
+            title = "Rename subcategory",
             initialName = subcat.name,
             confirmText = "Save",
             onDismiss = { subcategoryToRename = null },
@@ -630,7 +630,7 @@ fun CategoryInputDialog(
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = TealPrimary,
-                    contentColor = Color.White
+                    contentColor = OnTealPrimary
                 )
             ) {
                 Text(confirmText)

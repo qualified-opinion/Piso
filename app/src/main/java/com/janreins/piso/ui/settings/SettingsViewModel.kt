@@ -300,7 +300,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val password = pendingExportPassword
         pendingExportPassword = null
         if (expectProtected && password == null) {
-            showMessage("Backup not saved. Choose Export File and enter the password again.")
+            showMessage("Backup not saved. Choose Export file and enter the password again.")
             return
         }
         viewModelScope.launch {

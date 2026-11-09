@@ -38,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,6 +52,7 @@ import com.janreins.piso.ui.components.ProgressBarWithPercent
 import com.janreins.piso.ui.theme.IncomeContainer
 import com.janreins.piso.ui.theme.IncomeGreen
 import com.janreins.piso.ui.theme.TealPrimary
+import com.janreins.piso.ui.theme.OnTealPrimary
 import com.janreins.piso.util.CurrencyUtil
 
 @Composable
@@ -103,7 +103,7 @@ fun GoalsScreen(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.testTag("goals_fab"),
                 containerColor = TealPrimary,
-                contentColor = Color.White,
+                contentColor = OnTealPrimary,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Goal")
@@ -124,7 +124,7 @@ fun GoalsScreen(
                     contentPadding = 20.dp
                 ) {
                     Text(
-                        text = "Total Saved Toward Goals",
+                        text = "Total saved toward goals",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
@@ -169,7 +169,7 @@ fun GoalsScreen(
 
                         PisoCard(
                             contentPadding = 16.dp,
-                            borderColor = if (goal.isCompleted) IncomeGreen.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            borderColor = if (goal.isCompleted) IncomeGreen.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -289,7 +289,7 @@ fun GoalsScreen(
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = TealPrimary,
-                                        contentColor = Color.White
+                                        contentColor = OnTealPrimary
                                     )
                                 ) {
                                     Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -390,7 +390,7 @@ fun GoalsScreen(
     // --- Delete Confirmation Dialog ---
     goalToDelete?.let { gToDelete ->
         ConfirmDialog(
-            title = "Delete Goal?",
+            title = "Delete goal?",
             message = "Are you sure you want to delete ${gToDelete.name}? Any transactions previously made will remain.",
             confirmText = "Delete",
             isDestructive = true,

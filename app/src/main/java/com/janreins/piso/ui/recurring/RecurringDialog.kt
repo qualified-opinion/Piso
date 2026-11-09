@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +43,8 @@ import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.ui.theme.ExpenseRed
 import com.janreins.piso.ui.theme.IncomeGreen
+import com.janreins.piso.ui.theme.OnIncomeGreen
+import com.janreins.piso.ui.theme.OnExpenseRed
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.DateUtil
 import com.janreins.piso.util.RecurringSchedule
@@ -148,7 +149,7 @@ fun RecurringDialog(
                             label = { Text(label) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = if (typeKey == "INCOME") IncomeGreen else ExpenseRed,
-                                selectedLabelColor = Color.White
+                                selectedLabelColor = if (typeKey == "INCOME") OnIncomeGreen else OnExpenseRed
                             ),
                             modifier = Modifier
                                 .weight(1f)
