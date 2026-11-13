@@ -39,7 +39,7 @@ fun GoalDialog(
     initialGoal: Goal? = null,
     accounts: List<Account>,
     onDismiss: () -> Unit,
-    onSave: (Goal) -> Unit
+    onSave: (Goal, seenCurrent: Double?) -> Unit
 ) {
     var name by remember { mutableStateOf(initialGoal?.name ?: "") }
     var targetText by remember {
@@ -198,7 +198,9 @@ fun GoalDialog(
                         deadlineMillis = initialGoal?.deadlineMillis,
                         accountId = selectedAccountId
                     )
-                    onSave(goal)
+                    // seenCurrent is the saved amount shown when the dialog opened, so a
+                    // contribution that landed since then isn't overwritten if it wasn't edited.
+                    onSave(goal, initialGoal?.currentAmount)
                 },
                 modifier = Modifier.testTag("goal_save_button"),
                 shape = RoundedCornerShape(10.dp)

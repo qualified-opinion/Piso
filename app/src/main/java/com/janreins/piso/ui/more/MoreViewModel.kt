@@ -7,6 +7,8 @@ import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.amountOwed
+import com.janreins.piso.data.models.shownValue
 import com.janreins.piso.data.repository.FinanceRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -59,8 +61,8 @@ class MoreViewModel(application: Application) : AndroidViewModel(application) {
             budgets = bdgts,
             debts = dts,
             investments = invs,
-            totalInvestments = invs.sumOf { it.currentValue },
-            totalDebtsRemaining = dts.sumOf { it.remainingAmount },
+            totalInvestments = invs.sumOf { it.shownValue() },
+            totalDebtsRemaining = dts.sumOf { it.amountOwed() },
             recurringCount = rules.size
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MoreUiState())

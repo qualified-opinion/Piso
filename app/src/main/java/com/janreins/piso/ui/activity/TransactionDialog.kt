@@ -125,8 +125,12 @@ fun TransactionDialog(
         accounts.forPicker(initialTransaction?.accountId, initialTransaction?.transferToId)
     }
 
+    // A purchase left behind when its card was deleted has no account. Don't pick a real one.
+    val keepsNoAccount = initialTransaction != null &&
+        initialTransaction.type == "EXPENSE" &&
+        initialTransaction.accountId == null
     var selectedAccountId by remember {
-        mutableStateOf(initialTransaction?.accountId ?: pickerAccounts.firstOrNull()?.id)
+        mutableStateOf(if (keepsNoAccount) null else initialTransaction?.accountId ?: pickerAccounts.firstOrNull()?.id)
     }
     var transferToAccountId by remember {
         mutableStateOf(initialTransaction?.transferToId ?: pickerAccounts.getOrNull(1)?.id ?: pickerAccounts.firstOrNull()?.id)
@@ -462,11 +466,12 @@ fun TransactionDialog(
                         errorMessage = "Please enter an amount greater than 0."
                         return@Button
                     }
-                    if (pickerAccounts.isNotEmpty() && selectedAccountId == null) {
+                    val savedType = if (keepsNoAccount) "EXPENSE" else type
+                    if (!keepsNoAccount && pickerAccounts.isNotEmpty() && selectedAccountId == null) {
                         errorMessage = "Please select an account."
                         return@Button
                     }
-                    if (type == "TRANSFER") {
+                    if (savedType == "TRANSFER") {
                         if (pickerAccounts.size < 2) {
                             errorMessage = "Add at least two accounts to record a transfer."
                             return@Button
@@ -480,13 +485,13 @@ fun TransactionDialog(
                     val tx = Transaction(
                         id = initialTransaction?.id ?: 0L,
                         dateMillis = dateMillis,
-                        type = type,
-                        category = if (type == "TRANSFER") "Transfer" else category.trim(),
-                        subcategory = if (type == "TRANSFER") "" else subcategory.trim(),
+                        type = savedType,
+                        category = if (savedType == "TRANSFER") "Transfer" else category.trim(),
+                        subcategory = if (savedType == "TRANSFER") "" else subcategory.trim(),
                         amount = parsedAmount,
                         note = note.trim(),
-                        accountId = selectedAccountId,
-                        transferToId = if (type == "TRANSFER") transferToAccountId else null,
+                        accountId = if (keepsNoAccount) null else selectedAccountId,
+                        transferToId = if (savedType == "TRANSFER") transferToAccountId else null,
                         goalId = initialTransaction?.goalId,
                         goalFlow = initialTransaction?.goalFlow,
                         debtId = initialTransaction?.debtId,

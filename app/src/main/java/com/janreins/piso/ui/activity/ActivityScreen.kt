@@ -353,6 +353,9 @@ fun ActivityScreen(
                                         viewModel.showMessage("To change this, delete it here and record it again from Invest")
                                     } else if (tx.type == "ADJUSTMENT") {
                                         viewModel.showMessage("To change this, delete it and adjust again")
+                                    } else if (tx.type == "EXPENSE" && tx.accountId == null) {
+                                        // A purchase whose card was deleted. Opening it would charge an account.
+                                        viewModel.showMessage("To change this, delete it here and add it again")
                                     } else {
                                         transactionToEdit = tx
                                     }

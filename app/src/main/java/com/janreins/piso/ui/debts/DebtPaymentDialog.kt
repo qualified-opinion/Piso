@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.data.models.Debt
+import com.janreins.piso.data.models.amountOwed
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
 
@@ -66,7 +67,7 @@ fun DebtPaymentDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Remaining Owed: ${CurrencyUtil.formatPeso(debt.remainingAmount)}",
+                    text = "Remaining Owed: ${CurrencyUtil.formatPeso(debt.amountOwed())}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -160,8 +161,8 @@ fun DebtPaymentDialog(
                     }
                     // The debt can only drop to zero, so paying more would take extra money out of
                     // the account without it being recorded anywhere.
-                    if (parsed - debt.remainingAmount > 0.005) {
-                        errorMessage = "Payment can't be more than the ${CurrencyUtil.formatPeso(debt.remainingAmount)} still owed."
+                    if (parsed - debt.amountOwed() > 0.005) {
+                        errorMessage = "Payment can't be more than the ${CurrencyUtil.formatPeso(debt.amountOwed())} still owed."
                         return@Button
                     }
                     onConfirmPayment(parsed, selectedAccountId, dateMillis)

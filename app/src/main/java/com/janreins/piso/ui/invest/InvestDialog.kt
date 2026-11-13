@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.shownValue
 import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
@@ -54,7 +55,7 @@ fun InvestDialog(
     var name by remember { mutableStateOf(initialInvestment?.name ?: "") }
     var kind by remember { mutableStateOf(initialInvestment?.kind ?: Categories.INVESTMENT_KINDS.first()) }
     var valueText by remember {
-        mutableStateOf(if (initialInvestment != null) CurrencyUtil.formatInputAmount(initialInvestment.currentValue) else "")
+        mutableStateOf(if (initialInvestment != null) CurrencyUtil.formatInputAmount(initialInvestment.shownValue()) else "")
     }
     var quantityText by remember {
         mutableStateOf(initialInvestment?.quantity ?: "")

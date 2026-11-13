@@ -14,6 +14,8 @@ import com.janreins.piso.data.models.Budget
 import com.janreins.piso.data.models.Debt
 import com.janreins.piso.data.models.Goal
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.amountOwed
+import com.janreins.piso.data.models.shownValue
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.state.CategorySpendingBreakdown
@@ -287,8 +289,8 @@ internal fun summarizeNetWorth(
     debts: List<Debt>
 ): NetWorthSummary {
     val accTotal = accounts.sumOf { it.balance }
-    val invTotal = investments.sumOf { it.currentValue }
-    val debtTotal = debts.sumOf { it.remainingAmount }
+    val invTotal = investments.sumOf { it.shownValue() }
+    val debtTotal = debts.sumOf { it.amountOwed() }
     return NetWorthSummary(
         netWorth = accTotal + invTotal - debtTotal,
         accountsTotal = accTotal,

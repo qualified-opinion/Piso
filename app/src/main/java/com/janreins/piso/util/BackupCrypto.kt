@@ -23,7 +23,9 @@ object BackupCrypto {
     private const val FORMAT_VERSION = 1
     internal const val DEFAULT_ITERATIONS = 150_000
     private const val MIN_ITERATIONS = 10_000
-    private const val MAX_ITERATIONS = 5_000_000
+    // A file can only ask for the count we actually use. Anything higher is rejected before
+    // key stretching, so a crafted backup can't hang the app on millions of rounds.
+    private const val MAX_ITERATIONS = DEFAULT_ITERATIONS
     private const val KEY_BITS = 256
     private const val SALT_BYTES = 16
     private const val IV_BYTES = 12
@@ -36,6 +38,7 @@ object BackupCrypto {
     /** Encrypts [plainJson] with [password]. Slow on purpose (key stretching): call off the main thread. */
     fun encrypt(plainJson: String, password: CharArray, iterations: Int = DEFAULT_ITERATIONS): String {
         require(password.size >= MIN_PASSWORD_LENGTH) { "Password too short" }
+        require(iterations in MIN_ITERATIONS..MAX_ITERATIONS) { "Unsupported iteration count" }
         val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
         val iv = ByteArray(IV_BYTES).also(random::nextBytes)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

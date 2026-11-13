@@ -8,8 +8,10 @@ import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.BackupData
 import com.janreins.piso.data.models.INVESTMENT_CATEGORY
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.isInvestmentBuy
 import com.janreins.piso.data.models.isInvestmentSale
+import com.janreins.piso.data.models.shownValue
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
 import com.janreins.piso.ui.budgets.budgetSpending
@@ -189,5 +191,60 @@ class InvestmentMoveTest {
 
         val csv = CsvExporter.transactionsToCsv(repository.allTransactions.first(), emptyList())
         assertTrue(csv.lines()[1].endsWith("Investment"))
+    }
+
+    @Test
+    fun deletingABuyBeforeTheSaleThatEmptiedItRestoresValueAndCash() = runBlocking {
+        val walletId = wallet(10000.0)
+        val fundId = fund(1000.0)
+        val before = netWorth()
+        repository.buyInvestment(fundId, 500.0, walletId, october)
+        repository.sellInvestment(fundId, 1500.0, walletId, october)
+        val buy = repository.allTransactions.first().single { it.isInvestmentBuy }
+        val sale = repository.allTransactions.first().single { it.isInvestmentSale }
+
+        repository.deleteTransaction(buy)
+        val dipped = database.investmentDao().getInvestmentById(fundId)!!
+        assertEquals(-500.0, dipped.currentValue, 0.0)
+        assertEquals(0.0, dipped.shownValue(), 0.0)
+        assertEquals(11500.0, balance(walletId), 0.0)
+        // A name save while the value is below zero must keep that value for the sale delete.
+        repository.updateInvestment(dipped.copy(name = "Renamed", currentValue = dipped.shownValue()))
+        assertEquals("Renamed", database.investmentDao().getInvestmentById(fundId)!!.name)
+        assertEquals(-500.0, value(fundId), 0.0)
+
+        repository.deleteTransaction(sale)
+        assertEquals(1000.0, value(fundId), 0.0)
+        assertEquals(10000.0, balance(walletId), 0.0)
+        assertEquals(before, netWorth(), 0.0)
+
+        repository.buyInvestment(fundId, 500.0, walletId, october)
+        repository.sellInvestment(fundId, 1500.0, walletId, october)
+        val again = repository.allTransactions.first()
+        repository.deleteTransaction(again.single { it.isInvestmentSale })
+        repository.deleteTransaction(again.single { it.isInvestmentBuy })
+        assertEquals(1000.0, value(fundId), 0.0)
+        assertEquals(10000.0, balance(walletId), 0.0)
+        assertEquals(before, netWorth(), 0.0)
+    }
+
+    @Test
+    fun deletingAnExpenseBeforeTheIncomeThatCoveredItRestoresCash() = runBlocking {
+        val walletId = wallet(100.0)
+        repository.addTransaction(Transaction(type = "EXPENSE", category = "Food", amount = 250.0, accountId = walletId, dateMillis = october))
+        repository.addTransaction(Transaction(type = "INCOME", category = "Salary", amount = 80.0, accountId = walletId, dateMillis = october))
+        assertEquals(-70.0, balance(walletId), 0.0)
+        val first = repository.allTransactions.first()
+
+        repository.deleteTransaction(first.single { it.type == "EXPENSE" })
+        repository.deleteTransaction(first.single { it.type == "INCOME" })
+        assertEquals(100.0, balance(walletId), 0.0)
+
+        repository.addTransaction(Transaction(type = "EXPENSE", category = "Food", amount = 250.0, accountId = walletId, dateMillis = october))
+        repository.addTransaction(Transaction(type = "INCOME", category = "Salary", amount = 80.0, accountId = walletId, dateMillis = october))
+        val second = repository.allTransactions.first()
+        repository.deleteTransaction(second.single { it.type == "INCOME" })
+        repository.deleteTransaction(second.single { it.type == "EXPENSE" })
+        assertEquals(100.0, balance(walletId), 0.0)
     }
 }

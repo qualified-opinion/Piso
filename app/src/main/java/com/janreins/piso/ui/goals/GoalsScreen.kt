@@ -341,7 +341,7 @@ fun GoalsScreen(
         GoalDialog(
             accounts = accounts,
             onDismiss = { showAddDialog = false },
-            onSave = { newGoal ->
+            onSave = { newGoal, _ ->
                 viewModel.addGoal(newGoal)
                 showAddDialog = false
             }
@@ -354,8 +354,8 @@ fun GoalsScreen(
             initialGoal = currentGoal,
             accounts = accounts,
             onDismiss = { goalToEdit = null },
-            onSave = { updatedGoal ->
-                viewModel.updateGoal(updatedGoal)
+            onSave = { updatedGoal, seenCurrent ->
+                viewModel.updateGoal(updatedGoal, seenCurrent)
                 goalToEdit = null
             }
         )

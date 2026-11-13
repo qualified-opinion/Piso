@@ -1,8 +1,8 @@
 package com.janreins.piso.data.models
 
 import androidx.room.Entity
-import androidx.room.Ignore
 import androidx.room.PrimaryKey
+import kotlin.math.max
 
 /**
  * Represents a debt (Credit Card, Personal, Family, Housing, Vehicle, etc.).
@@ -22,5 +22,12 @@ data class Debt(
     val tracksPurchases: Boolean = false
 ) {
     val isPaidOff: Boolean
-        get() = remainingAmount <= 0.0001
+        get() = amountOwed() <= 0.0001
 }
+
+/**
+ * What's owed, never below zero. The stored [Debt.remainingAmount] can sit below zero when a
+ * purchase is deleted before the payment that cleared it, so deleting that payment later still
+ * lands on the right balance. Screens show this, not the raw balance.
+ */
+fun Debt.amountOwed(): Double = if (remainingAmount.isFinite()) max(0.0, remainingAmount) else remainingAmount

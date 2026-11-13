@@ -11,6 +11,7 @@ import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.data.models.BackupData
 import com.janreins.piso.data.models.BackupSummary
+import com.janreins.piso.data.models.withValidMoney
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.BackupSafety
@@ -57,7 +58,12 @@ data class BackupImportState(
 /** Reads backup text that isn't password-protected, or explains why it can't be restored. */
 internal fun parseBackupText(text: String): BackupImportState {
     val data = BackupData.fromJsonString(text)
-    return if (data == null) BackupImportState(error = "This is not a valid Piso backup.") else BackupImportState(data = data)
+        ?: return BackupImportState(error = "This is not a valid Piso backup.")
+    return try {
+        BackupImportState(data = data.withValidMoney())
+    } catch (e: IllegalArgumentException) {
+        BackupImportState(error = e.message ?: "This backup has an invalid amount.")
+    }
 }
 
 /** Unlocks a password-protected backup and reads it. Wrong password keeps it locked with a message. */
