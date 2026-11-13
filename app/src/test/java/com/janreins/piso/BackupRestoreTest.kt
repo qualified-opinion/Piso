@@ -10,6 +10,8 @@ import com.janreins.piso.data.local.UserProfile
 import com.janreins.piso.data.local.UserProfileManager
 import com.janreins.piso.ui.app.AppViewModel
 import com.janreins.piso.ui.settings.SettingsViewModel
+import com.janreins.piso.ui.settings.parseBackupText
+import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.data.models.*
 import com.janreins.piso.data.repository.BackupSafety
 import com.janreins.piso.data.repository.FinanceRepository
@@ -567,6 +569,100 @@ class BackupRestoreTest {
         val before = snapshot()
         val unsafe = FinanceRepository(database)
         assertNotNull(runCatching { unsafe.importBackupJson(fixture("Imported").toJsonString()) }.exceptionOrNull())
+        assertSameData(before, snapshot())
+    }
+
+    @Test
+    fun restoreRoundsMoneyToCentavos() = runBlocking {
+        val dirty = fixture("Round").let { data ->
+            data.copy(
+                accounts = data.accounts.map { it.copy(balance = 1.005) },
+                transactions = data.transactions.map { it.copy(amount = 1.005) },
+                budgets = data.budgets.map { it.copy(limitAmount = 1.005) },
+                goals = data.goals.map { it.copy(targetAmount = 1.005, currentAmount = -0.001) },
+                debts = data.debts.map { it.copy(originalAmount = 1.005, remainingAmount = -1.005) },
+                investments = data.investments.map { it.copy(currentValue = 1.005) },
+                recurringRules = data.recurringRules.map { it.copy(amount = 1.005) }
+            )
+        }
+        assertTrue(repository.importBackup(dirty))
+        val stored = snapshot()
+        assertEquals(1.01, stored.accounts.single().balance, 0.0)
+        assertEquals(1.01, stored.transactions.single().amount, 0.0)
+        assertEquals(1.01, stored.budgets.single().limitAmount, 0.0)
+        assertEquals(1.01, stored.goals.single().targetAmount, 0.0)
+        assertEquals(0.0, stored.goals.single().currentAmount, 0.0)
+        assertEquals(1.01, stored.debts.single().originalAmount, 0.0)
+        assertEquals(CurrencyUtil.roundCents(-1.005), stored.debts.single().remainingAmount, 0.0)
+        assertEquals(1.01, stored.investments.single().currentValue, 0.0)
+        assertEquals(1.01, stored.recurringRules.single().amount, 0.0)
+
+        val fromFile = org.json.JSONObject(fixture("Round").toJsonString())
+        fromFile.getJSONArray("accounts").getJSONObject(0).put("balance", 1.005)
+        assertTrue(repository.importBackupJson(fromFile.toString()))
+        assertEquals(1.01, snapshot().accounts.single().balance, 0.0)
+    }
+
+    @Test
+    fun restoreKeepsANegativeBalanceWhereTheLedgerAllowsOne() = runBlocking {
+        val overdraft = fixture("Overdraft").let { data ->
+            data.copy(
+                accounts = data.accounts.map { it.copy(balance = -25.50) },
+                debts = data.debts.map { it.copy(remainingAmount = -10.0) },
+                investments = data.investments.map { it.copy(currentValue = -1.25) }
+            )
+        }
+        assertTrue(repository.importBackup(overdraft))
+        val stored = snapshot()
+        assertEquals(-25.50, stored.accounts.single().balance, 0.0)
+        assertEquals(-10.0, stored.debts.single().remainingAmount, 0.0)
+        assertEquals(-1.25, stored.investments.single().currentValue, 0.0)
+    }
+
+    @Test
+    fun restoreRejectsAmountsThatAreNotRealOrNotAllowed() = runBlocking {
+        val prior = fixture("Prior")
+        assertTrue(repository.importBackupJson(prior.toJsonString()))
+        val before = snapshot()
+        val latest = safety.latestBackup()
+        val notReal = listOf(
+            prior.copy(accounts = prior.accounts.map { it.copy(balance = Double.NaN) }),
+            prior.copy(transactions = prior.transactions.map { it.copy(amount = Double.POSITIVE_INFINITY) }),
+            prior.copy(investments = prior.investments.map { it.copy(currentValue = Double.NEGATIVE_INFINITY) })
+        )
+        notReal.forEach { bad ->
+            val error = runCatching { repository.importBackup(bad) }.exceptionOrNull()
+            assertTrue(error is IllegalArgumentException)
+            assertTrue(error!!.message!!.contains("isn't a real number"))
+            assertSameData(before, snapshot())
+            assertEquals(latest, safety.latestBackup())
+        }
+        val notAllowed = listOf(
+            prior.copy(transactions = prior.transactions.map { it.copy(amount = -5.0) }) to "must be more than zero",
+            prior.copy(goals = prior.goals.map { it.copy(currentAmount = -0.01) }) to "can't be negative",
+            prior.copy(debts = prior.debts.map { it.copy(originalAmount = -1.0) }) to "must be more than zero"
+        )
+        notAllowed.forEach { (bad, message) ->
+            val error = runCatching { repository.importBackup(bad) }.exceptionOrNull()
+            assertTrue(error is IllegalArgumentException)
+            assertTrue(error!!.message!!.contains(message))
+            assertSameData(before, snapshot())
+            assertEquals(latest, safety.latestBackup())
+        }
+
+        val poisoned = org.json.JSONObject(fixture("Bad").toJsonString()).apply {
+            getJSONArray("accounts").getJSONObject(0).put("balance", "NaN")
+        }.toString()
+        val preview = parseBackupText(poisoned)
+        assertNull(preview.data)
+        assertTrue(preview.error!!.contains("isn't a real number"))
+        val negativePreview = parseBackupText(
+            org.json.JSONObject(fixture("Bad").toJsonString()).apply {
+                getJSONArray("transactions").getJSONObject(0).put("amount", -5)
+            }.toString()
+        )
+        assertNull(negativePreview.data)
+        assertTrue(negativePreview.error!!.contains("must be more than zero"))
         assertSameData(before, snapshot())
     }
 

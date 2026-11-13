@@ -24,6 +24,9 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId OR transferToId = :accountId")
     suspend fun getTransactionCountForAccount(accountId: Long): Int
 
+    @Query("SELECT COUNT(*) FROM transactions WHERE debtId = :debtId AND debtFlow = :debtFlow")
+    suspend fun countForDebtFlow(debtId: Long, debtFlow: String): Int
+
     // Detach history from a deleted goal/debt so a later record reusing the id isn't affected
     @Query("UPDATE transactions SET goalId = NULL WHERE goalId = :goalId")
     suspend fun detachGoal(goalId: Long)

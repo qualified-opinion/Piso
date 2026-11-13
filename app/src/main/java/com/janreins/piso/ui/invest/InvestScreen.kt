@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.shownValue
 import com.janreins.piso.ui.components.ConfirmDialog
 import com.janreins.piso.ui.components.PisoCard
 import com.janreins.piso.ui.components.PisoEmptyState
@@ -64,7 +65,7 @@ fun InvestScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val investments = uiState.investments
-    val totalInvestments = remember(investments) { investments.sumOf { it.currentValue } }
+    val totalInvestments = remember(investments) { investments.sumOf { it.shownValue() } }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var investmentToEdit by remember { mutableStateOf<Investment?>(null) }
@@ -212,7 +213,7 @@ fun InvestScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = CurrencyUtil.formatPeso(item.currentValue),
+                                            text = CurrencyUtil.formatPeso(item.shownValue()),
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = IncomeGreen
@@ -265,7 +266,7 @@ fun InvestScreen(
                                 }
                                 OutlinedButton(
                                     onClick = { investmentMove = item to true },
-                                    enabled = item.currentValue > 0.0,
+                                    enabled = item.shownValue() > 0.0,
                                     modifier = Modifier
                                         .weight(1f)
                                         .testTag("invest_sell_button"),

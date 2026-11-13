@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.piso.data.models.Debt
+import com.janreins.piso.data.models.amountOwed
+import com.janreins.piso.data.models.isCardPurchase
 import com.janreins.piso.ui.components.ConfirmDialog
 import com.janreins.piso.ui.components.PisoCard
 import com.janreins.piso.ui.components.PisoEmptyState
@@ -67,8 +69,9 @@ fun DebtsScreen(
 
     val debts = uiState.debts
     val accounts = uiState.accounts
+    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
 
-    val totalRemainingDebt = remember(debts) { debts.sumOf { it.remainingAmount } }
+    val totalRemainingDebt = remember(debts) { debts.sumOf { it.amountOwed() } }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var debtToEdit by remember { mutableStateOf<Debt?>(null) }
@@ -166,7 +169,8 @@ fun DebtsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(debts, key = { it.id }) { debt ->
-                        val paidAmount = kotlin.math.max(0.0, debt.originalAmount - debt.remainingAmount)
+                        val owed = debt.amountOwed()
+                        val paidAmount = kotlin.math.max(0.0, debt.originalAmount - owed)
                         val fractionPaid = if (debt.originalAmount > 0) (paidAmount / debt.originalAmount).toFloat() else 0f
 
                         PisoCard(
@@ -235,7 +239,7 @@ fun DebtsScreen(
                             // A card with recorded purchases goes up and down, so "% paid" means nothing.
                             if (debt.tracksPurchases) {
                                 Text(
-                                    text = if (debt.isPaidOff) "Nothing owed" else "${CurrencyUtil.formatPeso(debt.remainingAmount)} owed",
+                                    text = if (debt.isPaidOff) "Nothing owed" else "${CurrencyUtil.formatPeso(owed)} owed",
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (debt.isPaidOff) IncomeGreen else ExpenseRed
@@ -246,7 +250,7 @@ fun DebtsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${CurrencyUtil.formatPeso(debt.remainingAmount)} remaining",
+                                    text = "${CurrencyUtil.formatPeso(owed)} remaining",
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (debt.isPaidOff) IncomeGreen else ExpenseRed
@@ -326,7 +330,7 @@ fun DebtsScreen(
     if (showAddDialog) {
         DebtDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { newDebt ->
+            onSave = { newDebt, _ ->
                 viewModel.addDebt(newDebt)
                 showAddDialog = false
             }
@@ -337,9 +341,10 @@ fun DebtsScreen(
     debtToEdit?.let { currentDebt ->
         DebtDialog(
             initialDebt = currentDebt,
+            hasRecordedPurchases = transactions.any { it.debtId == currentDebt.id && it.isCardPurchase },
             onDismiss = { debtToEdit = null },
-            onSave = { updatedDebt ->
-                viewModel.updateDebt(updatedDebt)
+            onSave = { updatedDebt, seenRemaining ->
+                viewModel.updateDebt(updatedDebt, seenRemaining)
                 debtToEdit = null
             }
         )

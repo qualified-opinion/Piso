@@ -65,9 +65,9 @@ class GoalsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateGoal(goal: Goal) {
+    fun updateGoal(goal: Goal, seenCurrent: Double?) {
         viewModelScope.launch {
-            repository.updateGoal(goal)
+            repository.updateGoal(goal, seenCurrent)
         }
     }
 

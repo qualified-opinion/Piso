@@ -124,4 +124,15 @@ class BackupCryptoTest {
         assertEquals("Wallet", parseBackupText(plain).data!!.accounts.single().name)
         assertNotNull(parseBackupText("{}").error)
     }
+
+    @Test
+    fun aCraftedIterationCountIsRejectedBeforeKeyStretching() {
+        val locked = JSONObject(BackupCrypto.encrypt(plain, "correct horse".toCharArray(), rounds))
+        locked.put("iterations", BackupCrypto.DEFAULT_ITERATIONS + 1)
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            BackupCrypto.decrypt(locked.toString(), "correct horse".toCharArray())
+        }
+        assertTrue(error.message!!.contains("Unsupported protected backup"))
+    }
 }

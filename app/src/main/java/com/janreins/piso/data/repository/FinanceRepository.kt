@@ -16,9 +16,12 @@ import com.janreins.piso.data.models.RecurringRule
 import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
+import com.janreins.piso.data.models.amountOwed
 import com.janreins.piso.data.models.isCardPurchase
 import com.janreins.piso.data.models.isInvestmentBuy
 import com.janreins.piso.data.models.isInvestmentSale
+import com.janreins.piso.data.models.shownValue
+import com.janreins.piso.data.models.withValidMoney
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.CurrencyUtil.roundCents
 import com.janreins.piso.util.DateUtil
@@ -288,8 +291,13 @@ class FinanceRepository(
             // Cap against the restored debt balance so the saved payment can be fully reverted.
             // A card purchase adds to what's owed, so it has nothing to cap against.
             val debt = newTx.debtId?.takeIf { !newTx.isCardPurchase }?.let { debtDao.getDebtById(it) }
-            val amount = debt?.let { minOf(newTx.amount, it.remainingAmount) } ?: newTx.amount
-            val normalized = newTx.copy(id = stored.id, amount = roundCents(amount))
+            val amount = debt?.let { minOf(newTx.amount, it.amountOwed()) } ?: newTx.amount
+            var normalized = newTx.copy(id = stored.id, amount = roundCents(amount))
+            // A purchase left behind when its card was deleted is an expense with no account.
+            // Editing it must not start charging a real account.
+            if (stored.type == "EXPENSE" && stored.accountId == null) {
+                normalized = normalized.copy(type = "EXPENSE", accountId = null, transferToId = null)
+            }
             applyTransactionBalance(normalized)
             transactionDao.updateTransaction(normalized)
         }
@@ -331,28 +339,25 @@ class FinanceRepository(
             }
         }
 
-        // Debt payment: reduces what's owed, never below zero. Reverting adds the payment back
-        // without capping at the original principal (the balance may include interest or fees).
-        // A card purchase works the other way: it adds to what's owed, and removing it takes
-        // that off again (never below zero, as a payment made since may have cleared it).
+        // A payment lowers what's owed; a card purchase raises it. The stored balance is not
+        // floored: deleting a purchase after it was paid can go below zero, so deleting the
+        // payment afterwards still lands on the right amount, in either order. What's shown as
+        // owed (and what a new payment can take) never goes below zero.
         tx.debtId?.let { debtId ->
             val debt = debtDao.getDebtById(debtId) ?: return@let
             val lowersDebt = (sign > 0) != tx.isCardPurchase
-            val remaining = if (lowersDebt) {
-                max(0.0, debt.remainingAmount - amount)
-            } else {
-                debt.remainingAmount + amount
-            }
+            val remaining = if (lowersDebt) debt.remainingAmount - amount else debt.remainingAmount + amount
             debtDao.updateDebt(debt.copy(remainingAmount = roundCents(remaining)))
         }
 
-        // Investment bought from an account raises its value; sold into an account lowers it.
-        // A value is never below zero (it may have been edited down since).
+        // A buy raises the investment's value; a sale lowers it, and the account moves the
+        // other way. The stored value is not floored, for the same reason as a debt: deleting
+        // the buy and the sale in either order has to put the value and the cash back.
         if (tx.isInvestmentBuy || tx.isInvestmentSale) {
             val inv = investmentDao.getInvestmentById(tx.investmentId!!)
             if (inv != null) {
                 val direction = if (tx.isInvestmentBuy) 1.0 else -1.0
-                val newValue = roundCents(max(0.0, inv.currentValue + sign * direction * amount))
+                val newValue = roundCents(inv.currentValue + sign * direction * amount)
                 investmentDao.updateInvestment(inv.copy(currentValue = newValue))
             }
         }
@@ -370,7 +375,24 @@ class FinanceRepository(
 
     // --- Goals ---
     suspend fun insertGoal(goal: Goal): Long = goalDao.insertGoal(normalizeGoal(goal))
-    suspend fun updateGoal(goal: Goal) = goalDao.updateGoal(normalizeGoal(goal))
+
+    /**
+     * Saves a goal's name, target and account. [seenCurrent] is the saved amount the dialog
+     * showed when it opened. If the user left that field as it was, a contribution that landed
+     * while the dialog was open is kept. If they typed a new amount, that amount is saved.
+     */
+    suspend fun updateGoal(goal: Goal, seenCurrent: Double? = null) {
+        database.withTransaction {
+            val stored = goalDao.getGoalById(goal.id) ?: return@withTransaction
+            val normalized = normalizeGoal(goal)
+            val current = if (seenCurrent != null && roundCents(normalized.currentAmount) == roundCents(seenCurrent)) {
+                stored.currentAmount
+            } else {
+                roundCents(max(0.0, normalized.currentAmount))
+            }
+            goalDao.updateGoal(normalized.copy(currentAmount = current, isCompleted = current >= normalized.targetAmount))
+        }
+    }
     suspend fun setGoalCompleted(goalId: Long, done: Boolean) = goalDao.setGoalCompleted(goalId, done)
 
     suspend fun deleteGoal(goal: Goal) {
@@ -473,7 +495,32 @@ class FinanceRepository(
 
     // --- Debts ---
     suspend fun insertDebt(debt: Debt): Long = debtDao.insertDebt(normalizeDebt(debt))
-    suspend fun updateDebt(debt: Debt) = debtDao.updateDebt(normalizeDebt(debt))
+
+    /**
+     * Saves a debt's name, kind, notes and original amount. [seenRemaining] is what the dialog
+     * showed as still owed when it opened. If the user left that field as it was, a payment
+     * that landed while the dialog was open is kept. If they typed a new remaining amount, that
+     * amount is saved. Purchase tracking stays on while purchases for this debt still exist, so
+     * a later payment is not counted as spending a second time.
+     */
+    suspend fun updateDebt(debt: Debt, seenRemaining: Double? = null) {
+        database.withTransaction {
+            val stored = debtDao.getDebtById(debt.id) ?: return@withTransaction
+            val normalized = normalizeDebt(debt)
+            val remaining = if (
+                seenRemaining != null &&
+                roundCents(normalized.remainingAmount) == roundCents(seenRemaining)
+            ) {
+                stored.remainingAmount
+            } else {
+                roundCents(max(0.0, normalized.remainingAmount))
+            }
+            val charges = transactionDao.countForDebtFlow(stored.id, DEBT_FLOW_CHARGE)
+            val tracks = normalized.tracksPurchases ||
+                (stored.tracksPurchases && !normalized.tracksPurchases && charges > 0)
+            debtDao.updateDebt(normalized.copy(remainingAmount = remaining, tracksPurchases = tracks))
+        }
+    }
 
     suspend fun deleteDebt(debt: Debt) {
         database.withTransaction {
@@ -504,18 +551,20 @@ class FinanceRepository(
             val debt = debtDao.getDebtById(debtId) ?: return@withTransaction
             // Never record more than is owed, so the transaction amount is exactly what the
             // payment took off the debt and deleting it adds back exactly that.
-            val applied = roundCents(minOf(amount, debt.remainingAmount))
+            val applied = roundCents(minOf(amount, debt.amountOwed()))
             if (applied <= 0.0) return@withTransaction
             if (fromAccountId == null) {
-                debtDao.updateDebt(debt.copy(remainingAmount = roundCents(max(0.0, debt.remainingAmount - applied))))
+                debtDao.updateDebt(debt.copy(remainingAmount = roundCents(debt.remainingAmount - applied)))
                 return@withTransaction
             }
-            // On a card whose purchases are recorded, the purchases were the spending, so the
-            // payment only moves money from the account to the card (a one-sided transfer).
+            // Purchases already counted as spending stay the spending, even if tracking was
+            // switched off afterwards. The payment then only moves money.
+            val purchasesRecorded = debt.tracksPurchases ||
+                transactionDao.countForDebtFlow(debt.id, DEBT_FLOW_CHARGE) > 0
             val tx = Transaction(
                 dateMillis = dateMillis,
-                type = if (debt.tracksPurchases) "TRANSFER" else "EXPENSE",
-                category = if (debt.tracksPurchases) CARD_PAYMENT_CATEGORY else "Debt",
+                type = if (purchasesRecorded) "TRANSFER" else "EXPENSE",
+                category = if (purchasesRecorded) CARD_PAYMENT_CATEGORY else "Debt",
                 subcategory = "",
                 amount = applied,
                 note = "Payment for ${debt.name}",
@@ -584,8 +633,28 @@ class FinanceRepository(
     // --- Investments ---
     suspend fun insertInvestment(investment: Investment): Long =
         investmentDao.insertInvestment(investment.copy(currentValue = roundCents(investment.currentValue)))
-    suspend fun updateInvestment(investment: Investment) =
-        investmentDao.updateInvestment(investment.copy(currentValue = roundCents(investment.currentValue)))
+
+    /**
+     * Saves a name, kind and value. If the form still shows the clamped value (never below zero)
+     * the stored value is kept, so a name edit can't wipe a balance that is temporarily below
+     * zero while a buy and a sale are deleted out of order.
+     */
+    suspend fun updateInvestment(investment: Investment) {
+        database.withTransaction {
+            val stored = investmentDao.getInvestmentById(investment.id)
+            val submitted = roundCents(investment.currentValue)
+            val value = if (
+                stored != null &&
+                submitted == roundCents(stored.shownValue()) &&
+                stored.currentValue != submitted
+            ) {
+                stored.currentValue
+            } else {
+                submitted
+            }
+            investmentDao.updateInvestment(investment.copy(currentValue = value))
+        }
+    }
     suspend fun deleteInvestment(investment: Investment) {
         database.withTransaction {
             // Buys and sales stay as transfers; detaching them stops a later investment that
@@ -642,7 +711,7 @@ class FinanceRepository(
     ): Boolean = database.withTransaction {
         val inv = investmentDao.getInvestmentById(investmentId) ?: return@withTransaction false
         val rounded = roundCents(amount)
-        if (rounded <= 0.0 || rounded > inv.currentValue || accountDao.getAccountById(toAccountId) == null) {
+        if (rounded <= 0.0 || rounded > inv.shownValue() || accountDao.getAccountById(toAccountId) == null) {
             return@withTransaction false
         }
         recordInvestmentMove(investmentId, inv.name, rounded, toAccountId, buy = false, dateMillis = dateMillis, note = note)
@@ -940,6 +1009,7 @@ class FinanceRepository(
     }
 
     private suspend fun replaceBackupData(data: BackupData) {
+        val clean = data.withValidMoney()
         accountDao.clearAccounts()
         transactionDao.clearTransactions()
         budgetDao.clearBudgets()
@@ -949,19 +1019,19 @@ class FinanceRepository(
         // A backup from before schedules has none; the old ones would point at the wrong accounts.
         recurringDao.clearRules()
 
-        accountDao.insertAccounts(data.accounts)
-        transactionDao.insertTransactions(data.transactions)
-        budgetDao.insertBudgets(data.budgets)
-        goalDao.insertGoals(data.goals)
-        debtDao.insertDebts(data.debts)
-        investmentDao.insertInvestments(data.investments)
-        recurringDao.insertRules(data.recurringRules)
+        accountDao.insertAccounts(clean.accounts)
+        transactionDao.insertTransactions(clean.transactions)
+        budgetDao.insertBudgets(clean.budgets)
+        goalDao.insertGoals(clean.goals)
+        debtDao.insertDebts(clean.debts)
+        investmentDao.insertInvestments(clean.investments)
+        recurringDao.insertRules(clean.recurringRules)
 
-        if (data.hasCategoryData) {
+        if (clean.hasCategoryData) {
             categoryDao.clearCategories()
             categoryDao.clearSubcategories()
-            categoryDao.insertCategories(data.categories)
-            categoryDao.insertSubcategories(data.subcategories)
+            categoryDao.insertCategories(clean.categories)
+            categoryDao.insertSubcategories(clean.subcategories)
         } else {
             seedDefaultCategoriesIfEmpty()
         }

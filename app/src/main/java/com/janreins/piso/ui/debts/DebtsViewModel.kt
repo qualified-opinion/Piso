@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.janreins.piso.data.local.AppDatabase
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Debt
+import com.janreins.piso.data.models.Transaction
 import com.janreins.piso.data.models.UserCategory
 import com.janreins.piso.data.models.UserSubcategory
 import com.janreins.piso.data.repository.FinanceRepository
@@ -49,6 +50,9 @@ class DebtsViewModel(application: Application) : AndroidViewModel(application) {
     val accounts: StateFlow<List<Account>> = repository.allAccounts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val transactions: StateFlow<List<Transaction>> = repository.allTransactions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val uiState: StateFlow<DebtsUiState> = combine(
         debts,
         openDebts,
@@ -73,9 +77,9 @@ class DebtsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateDebt(debt: Debt) {
+    fun updateDebt(debt: Debt, seenRemaining: Double?) {
         viewModelScope.launch {
-            repository.updateDebt(debt)
+            repository.updateDebt(debt, seenRemaining)
         }
     }
 

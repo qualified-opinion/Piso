@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -711,5 +712,43 @@ class FinanceRepositoryTest {
         assertEquals(500.0, database.goalDao().getGoalById(goalId)!!.currentAmount, 0.0)
         fun shape(txs: List<Transaction>) = txs.map { listOf(it.type, it.amount, it.accountId, it.transferToId, it.goalFlow) }.toSet()
         assertEquals(shape(txBefore), shape(repository.allTransactions.first()))
+    }
+
+    @Test
+    fun savingAStaleDebtKeepsAPaymentThatLandedWhileItWasOpen() = runBlocking {
+        val debtId = repository.insertDebt(
+            Debt(name = "Loan", kind = "Personal", originalAmount = 1000.0, remainingAmount = 1000.0)
+        )
+        val stale = database.debtDao().getDebtById(debtId)!!
+        repository.recordDebtPayment(debtId, 250.0, null)
+
+        repository.updateDebt(stale.copy(name = "Renamed"), seenRemaining = stale.remainingAmount)
+
+        val saved = database.debtDao().getDebtById(debtId)!!
+        assertEquals("Renamed", saved.name)
+        assertEquals(750.0, saved.remainingAmount, 0.0)
+
+        repository.updateDebt(stale.copy(name = "Renamed", remainingAmount = 400.0), seenRemaining = stale.remainingAmount)
+        assertEquals(400.0, database.debtDao().getDebtById(debtId)!!.remainingAmount, 0.0)
+    }
+
+    @Test
+    fun savingAStaleGoalKeepsAContributionThatLandedWhileItWasOpen() = runBlocking {
+        val goalId = repository.insertGoal(Goal(name = "Phone", targetAmount = 1000.0, currentAmount = 100.0))
+        val stale = database.goalDao().getGoalById(goalId)!!
+        repository.addMoneyToGoal(goalId, 200.0, null)
+
+        repository.updateGoal(stale.copy(name = "Renamed", targetAmount = 200.0), seenCurrent = stale.currentAmount)
+
+        val saved = database.goalDao().getGoalById(goalId)!!
+        assertEquals("Renamed", saved.name)
+        assertEquals(300.0, saved.currentAmount, 0.0)
+        assertTrue(saved.isCompleted)
+        assertEquals(200.0, saved.targetAmount, 0.0)
+
+        repository.updateGoal(stale.copy(currentAmount = 50.0), seenCurrent = stale.currentAmount)
+        val edited = database.goalDao().getGoalById(goalId)!!
+        assertEquals(50.0, edited.currentAmount, 0.0)
+        assertFalse(edited.isCompleted)
     }
 }

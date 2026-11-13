@@ -60,6 +60,7 @@ import com.janreins.piso.ui.theme.TealContainer
 import com.janreins.piso.ui.theme.TealPrimary
 import com.janreins.piso.ui.theme.OnIncomeGreen
 import com.janreins.piso.ui.theme.OnExpenseRed
+import com.janreins.piso.data.models.amountOwed
 import com.janreins.piso.util.CurrencyUtil
 import com.janreins.piso.util.DateUtil
 
@@ -686,7 +687,7 @@ fun HomeScreen(
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = CurrencyUtil.formatPeso(debt.remainingAmount),
+                                    text = CurrencyUtil.formatPeso(debt.amountOwed()),
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontWeight = FontWeight.SemiBold,
                                         color = ExpenseRed

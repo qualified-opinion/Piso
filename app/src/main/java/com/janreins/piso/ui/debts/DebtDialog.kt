@@ -35,14 +35,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Categories
 import com.janreins.piso.data.models.Debt
+import com.janreins.piso.data.models.amountOwed
 import com.janreins.piso.util.CurrencyUtil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebtDialog(
     initialDebt: Debt? = null,
+    hasRecordedPurchases: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (Debt) -> Unit
+    onSave: (Debt, seenRemaining: Double?) -> Unit
 ) {
     var name by remember { mutableStateOf(initialDebt?.name ?: "") }
     var kind by remember { mutableStateOf(initialDebt?.kind ?: Categories.DEBT_KINDS.first()) }
@@ -50,7 +52,7 @@ fun DebtDialog(
         mutableStateOf(
             DebtAmountInputState(
                 originalText = initialDebt?.let { CurrencyUtil.formatInputAmount(it.originalAmount) } ?: "",
-                remainingText = initialDebt?.let { CurrencyUtil.formatInputAmount(it.remainingAmount) } ?: "",
+                remainingText = initialDebt?.let { CurrencyUtil.formatInputAmount(it.amountOwed()) } ?: "",
                 remainingEdited = initialDebt != null
             )
         )
@@ -226,6 +228,13 @@ fun DebtDialog(
                         errorMessage = "Please enter a valid remaining amount (0 or more)."
                         return@Button
                     }
+                    val tracks = kind == CREDIT_CARD_KIND && tracksPurchases
+                    // Purchases already counted as spending. Turning tracking off would count
+                    // them again the next time the card is paid.
+                    if (initialDebt?.tracksPurchases == true && !tracks && hasRecordedPurchases) {
+                        errorMessage = "This card has purchases recorded. Keep purchase tracking on, or paying the card counts that spending again."
+                        return@Button
+                    }
 
                     val debt = Debt(
                         id = initialDebt?.id ?: 0L,
@@ -235,9 +244,11 @@ fun DebtDialog(
                         remainingAmount = parsedRemaining,
                         notes = notes.trim(),
                         dueMillis = initialDebt?.dueMillis,
-                        tracksPurchases = kind == CREDIT_CARD_KIND && tracksPurchases
+                        tracksPurchases = tracks
                     )
-                    onSave(debt)
+                    // seenRemaining is what the field showed when the dialog opened. The save
+                    // keeps a payment that landed since then when the user didn't change it.
+                    onSave(debt, initialDebt?.amountOwed())
                 },
                 modifier = Modifier.testTag("debt_save_button"),
                 shape = RoundedCornerShape(10.dp)

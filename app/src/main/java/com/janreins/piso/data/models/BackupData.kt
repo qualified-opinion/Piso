@@ -1,5 +1,6 @@
 package com.janreins.piso.data.models
 
+import com.janreins.piso.util.CurrencyUtil
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -381,4 +382,58 @@ data class BackupData(
             }
         }
     }
+}
+
+private enum class MoneyBound { ANY, ZERO_OR_MORE, MORE_THAN_ZERO }
+
+/**
+ * Rounds every amount to centavos and refuses values that aren't real numbers, or that are
+ * negative where that balance can't be. Account balances, debt remaining and investment values
+ * may be negative (an overdraft, or a buy deleted before its sale). Throws [IllegalArgumentException]
+ * with a message that says which amount was rejected.
+ */
+fun BackupData.withValidMoney(): BackupData {
+    fun money(value: Double, what: String, bound: MoneyBound): Double {
+        if (!value.isFinite()) {
+            throw IllegalArgumentException("Can't restore this backup: $what isn't a real number.")
+        }
+        val rounded = CurrencyUtil.roundCents(value)
+        when (bound) {
+            MoneyBound.ANY -> Unit
+            MoneyBound.ZERO_OR_MORE -> if (rounded < 0.0) {
+                throw IllegalArgumentException("Can't restore this backup: $what can't be negative.")
+            }
+            MoneyBound.MORE_THAN_ZERO -> if (rounded <= 0.0) {
+                throw IllegalArgumentException("Can't restore this backup: $what must be more than zero.")
+            }
+        }
+        return rounded
+    }
+    return copy(
+        accounts = accounts.map { it.copy(balance = money(it.balance, "an account balance", MoneyBound.ANY)) },
+        transactions = transactions.map {
+            it.copy(amount = money(it.amount, "a transaction amount", MoneyBound.MORE_THAN_ZERO))
+        },
+        budgets = budgets.map {
+            it.copy(limitAmount = money(it.limitAmount, "a budget limit", MoneyBound.MORE_THAN_ZERO))
+        },
+        goals = goals.map {
+            it.copy(
+                targetAmount = money(it.targetAmount, "a goal target", MoneyBound.MORE_THAN_ZERO),
+                currentAmount = money(it.currentAmount, "a goal's saved amount", MoneyBound.ZERO_OR_MORE)
+            )
+        },
+        debts = debts.map {
+            it.copy(
+                originalAmount = money(it.originalAmount, "a debt's original amount", MoneyBound.MORE_THAN_ZERO),
+                remainingAmount = money(it.remainingAmount, "a debt's remaining amount", MoneyBound.ANY)
+            )
+        },
+        investments = investments.map {
+            it.copy(currentValue = money(it.currentValue, "an investment value", MoneyBound.ANY))
+        },
+        recurringRules = recurringRules.map {
+            it.copy(amount = money(it.amount, "a recurring amount", MoneyBound.MORE_THAN_ZERO))
+        }
+    )
 }

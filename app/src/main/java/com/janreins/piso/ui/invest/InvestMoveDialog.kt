@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.piso.data.models.Account
 import com.janreins.piso.data.models.Investment
+import com.janreins.piso.data.models.shownValue
 import com.janreins.piso.data.models.forPicker
 import com.janreins.piso.ui.components.DateField
 import com.janreins.piso.util.CurrencyUtil
@@ -89,7 +90,7 @@ fun InvestMoveDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Current value: ${CurrencyUtil.formatPeso(investment.currentValue)}",
+                    text = "Current value: ${CurrencyUtil.formatPeso(investment.shownValue())}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -191,7 +192,7 @@ fun InvestMoveDialog(
                         return@Button
                     }
                     if (isSale) {
-                        saleAmountError(parsed, investment.currentValue)?.let {
+                        saleAmountError(parsed, investment.shownValue())?.let {
                             errorMessage = it
                             return@Button
                         }
